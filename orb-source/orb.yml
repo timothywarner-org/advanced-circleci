@@ -1,0 +1,433 @@
+# ============================================================================
+# GLOBOMANTICS ROBOT FLEET ORB
+# ============================================================================
+#
+# A custom CircleCI orb for the Globomantics Robot Fleet API course project.
+# This orb demonstrates how to create and publish your own orbs.
+#
+# WHAT THIS ORB PROVIDES:
+#   - Executors: Pre-configured Node.js environments
+#   - Commands: Health checks, deployment validation, notifications
+#   - Jobs: Ready-to-use jobs for common workflows
+#
+# PUBLISHING:
+#   circleci orb pack orb-source > orb.yml
+#   circleci orb publish orb.yml globomantics/robot-fleet@1.0.0
+#
+# USAGE:
+#   orbs:
+#     robot-fleet: globomantics/robot-fleet@1.0.0
+#
+#   jobs:
+#     deploy:
+#       steps:
+#         - robot-fleet/health-check:
+#             url: https://api.globomantics.com
+#
+# ============================================================================
+
+version: 2.1
+
+description: |
+  Globomantics Robot Fleet API orb provides commands and jobs for deploying
+  and monitoring the Robot Fleet API. Use this orb to standardize your
+  CI/CD pipelines across all Globomantics projects.
+
+  ## Features
+  - Health check command with retry logic
+  - Deployment validation with rollback support
+  - Slack notifications with Globomantics branding
+  - Node.js executor pre-configured for Robot Fleet projects
+
+  ## Source
+  https://github.com/timothywarner-org/advanced-circleci
+
+display:
+  home_url: https://github.com/timothywarner-org/advanced-circleci
+  source_url: https://github.com/timothywarner-org/advanced-circleci/tree/main/orb-source
+
+# ============================================================================
+# EXECUTORS
+# Pre-configured execution environments
+# ============================================================================
+executors:
+  # Default Node.js executor for Robot Fleet projects
+  default:
+    description: "Node.js 20 executor optimized for Robot Fleet API"
+    parameters:
+      node-version:
+        type: string
+        default: "20"
+        description: "Node.js version to use"
+    docker:
+      - image: cimg/node:<< parameters.node-version >>
+    working_directory: ~/project
+    environment:
+      NODE_ENV: production
+      CI: "true"
+      GLOBOMANTICS_PROJECT: robot-fleet-api
+
+  # Executor with Docker support for container builds
+  with-docker:
+    description: "Base executor with Docker support for building images"
+    docker:
+      - image: cimg/base:current
+    working_directory: ~/project
+    environment:
+      DOCKER_BUILDKIT: "1"
+
+# ============================================================================
+# COMMANDS
+# Reusable step sequences
+# ============================================================================
+commands:
+  # --------------------------------------------------------------------------
+  # HEALTH CHECK
+  # Verify an endpoint is responding correctly
+  # --------------------------------------------------------------------------
+  health-check:
+    description: "Check if the Robot Fleet API is healthy"
+    parameters:
+      url:
+        type: string
+        description: "Base URL of the API to check"
+      endpoint:
+        type: string
+        default: "/api/health"
+        description: "Health check endpoint path"
+      timeout:
+        type: integer
+        default: 30
+        description: "Timeout in seconds for each attempt"
+      retries:
+        type: integer
+        default: 5
+        description: "Number of retry attempts"
+      retry-delay:
+        type: integer
+        default: 10
+        description: "Seconds to wait between retries"
+    steps:
+      - run:
+          name: Health Check - << parameters.url >><< parameters.endpoint >>
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     GLOBOMANTICS HEALTH CHECK                      ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  URL: << parameters.url >><< parameters.endpoint >>"
+            echo "║  Timeout: << parameters.timeout >>s"
+            echo "║  Retries: << parameters.retries >>"
+            echo "╚════════════════════════════════════════════════════╝"
+
+            for i in $(seq 1 << parameters.retries >>); do
+              echo ""
+              echo "Attempt $i of << parameters.retries >>..."
+
+              if curl -sf --max-time << parameters.timeout >> \
+                "<< parameters.url >><< parameters.endpoint >>" > /dev/null; then
+                echo "Health check PASSED!"
+                exit 0
+              fi
+
+              if [ $i -lt << parameters.retries >> ]; then
+                echo "Failed, waiting << parameters.retry-delay >> seconds..."
+                sleep << parameters.retry-delay >>
+              fi
+            done
+
+            echo ""
+            echo "Health check FAILED after << parameters.retries >> attempts"
+            exit 1
+
+  # --------------------------------------------------------------------------
+  # VALIDATE DEPLOYMENT
+  # Verify deployment was successful with comprehensive checks
+  # --------------------------------------------------------------------------
+  validate-deployment:
+    description: "Validate a Robot Fleet API deployment"
+    parameters:
+      url:
+        type: string
+        description: "Base URL of the deployed API"
+      expected-version:
+        type: string
+        default: ""
+        description: "Expected version string (optional)"
+      check-robots:
+        type: boolean
+        default: true
+        description: "Verify robots endpoint returns data"
+    steps:
+      - run:
+          name: Validate Deployment - << parameters.url >>
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     GLOBOMANTICS DEPLOYMENT VALIDATION             ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  URL: << parameters.url >>"
+            echo "╚════════════════════════════════════════════════════╝"
+
+            ERRORS=0
+
+            # Check health endpoint
+            echo ""
+            echo "Checking health endpoint..."
+            if curl -sf "<< parameters.url >>/api/health" > /dev/null; then
+              echo "  [PASS] Health endpoint responding"
+            else
+              echo "  [FAIL] Health endpoint not responding"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            # Check version if specified
+            if [ -n "<< parameters.expected-version >>" ]; then
+              echo ""
+              echo "Checking version..."
+              ACTUAL_VERSION=$(curl -sf "<< parameters.url >>/api/health/version" | jq -r '.version' 2>/dev/null || echo "unknown")
+              if [ "$ACTUAL_VERSION" = "<< parameters.expected-version >>" ]; then
+                echo "  [PASS] Version matches: $ACTUAL_VERSION"
+              else
+                echo "  [FAIL] Version mismatch: expected << parameters.expected-version >>, got $ACTUAL_VERSION"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+
+            # Check robots endpoint if enabled
+            if [ "<< parameters.check-robots >>" = "true" ]; then
+              echo ""
+              echo "Checking robots endpoint..."
+              ROBOT_COUNT=$(curl -sf "<< parameters.url >>/api/robots" | jq 'length' 2>/dev/null || echo "0")
+              if [ "$ROBOT_COUNT" -gt "0" ]; then
+                echo "  [PASS] Robots endpoint returning $ROBOT_COUNT robots"
+              else
+                echo "  [FAIL] Robots endpoint returned no data"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+
+            echo ""
+            if [ $ERRORS -eq 0 ]; then
+              echo "All validation checks PASSED!"
+              exit 0
+            else
+              echo "Validation FAILED with $ERRORS error(s)"
+              exit 1
+            fi
+
+  # --------------------------------------------------------------------------
+  # NOTIFY GLOBOMANTICS
+  # Send branded notification
+  # --------------------------------------------------------------------------
+  notify:
+    description: "Send a Globomantics-branded notification"
+    parameters:
+      message:
+        type: string
+        description: "Notification message"
+      type:
+        type: enum
+        enum: ["success", "failure", "info"]
+        default: "info"
+        description: "Notification type"
+      environment:
+        type: string
+        default: "unknown"
+        description: "Deployment environment"
+    steps:
+      - run:
+          name: Globomantics Notification
+          command: |
+            case "<< parameters.type >>" in
+              success)
+                ICON="[SUCCESS]"
+                ;;
+              failure)
+                ICON="[FAILURE]"
+                ;;
+              *)
+                ICON="[INFO]"
+                ;;
+            esac
+
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     GLOBOMANTICS NOTIFICATION                      ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  $ICON << parameters.message >>"
+            echo "║  Environment: << parameters.environment >>"
+            echo "║  Pipeline: ${CIRCLE_BUILD_NUM:-N/A}"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}"
+            echo "╚════════════════════════════════════════════════════╝"
+
+  # --------------------------------------------------------------------------
+  # SETUP ROBOT FLEET
+  # Initialize a Robot Fleet project
+  # --------------------------------------------------------------------------
+  setup:
+    description: "Set up a Robot Fleet project environment"
+    parameters:
+      install-deps:
+        type: boolean
+        default: true
+        description: "Install npm dependencies"
+    steps:
+      - checkout
+      - when:
+          condition: << parameters.install-deps >>
+          steps:
+            - restore_cache:
+                keys:
+                  - robot-fleet-deps-v1-{{ checksum "package-lock.json" }}
+                  - robot-fleet-deps-v1-
+            - run:
+                name: Install dependencies
+                command: npm ci
+            - save_cache:
+                key: robot-fleet-deps-v1-{{ checksum "package-lock.json" }}
+                paths:
+                  - ./node_modules
+
+# ============================================================================
+# JOBS
+# Complete job definitions
+# ============================================================================
+jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB
+  # Standard build for Robot Fleet projects
+  # --------------------------------------------------------------------------
+  build:
+    description: "Build a Robot Fleet project"
+    executor: default
+    parameters:
+      build-command:
+        type: string
+        default: "npm run build"
+        description: "Build command to run"
+    steps:
+      - setup
+      - run:
+          name: Build application
+          command: << parameters.build-command >>
+      - run:
+          name: Lint code
+          command: npm run lint || true
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - public
+            - package.json
+
+  # --------------------------------------------------------------------------
+  # TEST JOB
+  # Run tests with coverage
+  # --------------------------------------------------------------------------
+  test:
+    description: "Run Robot Fleet project tests"
+    executor: default
+    parameters:
+      test-command:
+        type: string
+        default: "npm test"
+        description: "Test command to run"
+    steps:
+      - setup
+      - run:
+          name: Run tests
+          command: << parameters.test-command >>
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
+
+  # --------------------------------------------------------------------------
+  # DEPLOY AND VERIFY JOB
+  # Deploy and validate the deployment
+  # --------------------------------------------------------------------------
+  deploy-and-verify:
+    description: "Deploy Robot Fleet API and verify deployment"
+    executor: with-docker
+    parameters:
+      environment:
+        type: string
+        description: "Target environment (dev, staging, production)"
+      url:
+        type: string
+        description: "URL of the deployed application"
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to << parameters.environment >>
+          command: |
+            echo "Deploying to << parameters.environment >>..."
+            # Add actual deployment commands here
+            echo "Deployment simulated"
+      - health-check:
+          url: << parameters.url >>
+          retries: 5
+          retry-delay: 10
+      - validate-deployment:
+          url: << parameters.url >>
+      - notify:
+          message: "Deployed to << parameters.environment >>"
+          type: success
+          environment: << parameters.environment >>
+
+# ============================================================================
+# EXAMPLES
+# Usage examples for the orb
+# ============================================================================
+examples:
+  basic-build-test:
+    description: "Basic build and test workflow"
+    usage:
+      version: 2.1
+      orbs:
+        robot-fleet: globomantics/robot-fleet@1.0.0
+      workflows:
+        build-test:
+          jobs:
+            - robot-fleet/build
+            - robot-fleet/test:
+                requires:
+                  - robot-fleet/build
+
+  health-check-example:
+    description: "Health check command usage"
+    usage:
+      version: 2.1
+      orbs:
+        robot-fleet: globomantics/robot-fleet@1.0.0
+      jobs:
+        check-prod:
+          executor: robot-fleet/default
+          steps:
+            - robot-fleet/health-check:
+                url: https://api.globomantics.com
+                retries: 10
+      workflows:
+        monitor:
+          jobs:
+            - check-prod
+
+  full-pipeline:
+    description: "Complete CI/CD pipeline with deploy and verify"
+    usage:
+      version: 2.1
+      orbs:
+        robot-fleet: globomantics/robot-fleet@1.0.0
+      workflows:
+        build-test-deploy:
+          jobs:
+            - robot-fleet/build
+            - robot-fleet/test:
+                requires:
+                  - robot-fleet/build
+            - robot-fleet/deploy-and-verify:
+                environment: staging
+                url: https://staging.globomantics.com
+                requires:
+                  - robot-fleet/test

@@ -1,0 +1,16 @@
+# Basic Build and Test Example
+description: "Basic build and test workflow using the Robot Fleet orb"
+usage:
+  version: 2.1
+
+  orbs:
+    robot-fleet: globomantics/robot-fleet@1.0.0
+
+  workflows:
+    build-test:
+      jobs:
+        - robot-fleet/build
+
+        - robot-fleet/test:
+            requires:
+              - robot-fleet/build

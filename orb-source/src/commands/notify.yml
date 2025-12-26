@@ -1,0 +1,40 @@
+# Notify Command
+# Send a Globomantics-branded notification
+description: "Send a Globomantics-branded notification"
+parameters:
+  message:
+    type: string
+    description: "Notification message"
+  type:
+    type: enum
+    enum: ["success", "failure", "info"]
+    default: "info"
+    description: "Notification type"
+  environment:
+    type: string
+    default: "unknown"
+    description: "Deployment environment"
+steps:
+  - run:
+      name: Globomantics Notification
+      command: |
+        case "<< parameters.type >>" in
+          success)
+            ICON="[SUCCESS]"
+            ;;
+          failure)
+            ICON="[FAILURE]"
+            ;;
+          *)
+            ICON="[INFO]"
+            ;;
+        esac
+
+        echo "╔════════════════════════════════════════════════════╗"
+        echo "║     GLOBOMANTICS NOTIFICATION                      ║"
+        echo "╠════════════════════════════════════════════════════╣"
+        echo "║  $ICON << parameters.message >>"
+        echo "║  Environment: << parameters.environment >>"
+        echo "║  Pipeline: ${CIRCLE_BUILD_NUM:-N/A}"
+        echo "║  Commit: ${CIRCLE_SHA1:0:7}"
+        echo "╚════════════════════════════════════════════════════╝"

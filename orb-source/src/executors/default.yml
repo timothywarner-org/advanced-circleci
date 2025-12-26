@@ -1,0 +1,14 @@
+# Default Node.js executor for Robot Fleet projects
+description: "Node.js 20 executor optimized for Robot Fleet API"
+parameters:
+  node-version:
+    type: string
+    default: "20"
+    description: "Node.js version to use"
+docker:
+  - image: cimg/node:<< parameters.node-version >>
+working_directory: ~/project
+environment:
+  NODE_ENV: production
+  CI: "true"
+  GLOBOMANTICS_PROJECT: robot-fleet-api
