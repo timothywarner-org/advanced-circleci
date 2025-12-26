@@ -14,7 +14,7 @@ const robots = [
     status: 'active',
     location: 'factory-floor-a',
     batteryLevel: 87,
-    lastMaintenance: '2024-01-10T14:30:00Z',
+    lastMaintenance: '2025-10-10T14:30:00Z',
     createdAt: '2023-06-15T09:00:00Z'
   },
   {
@@ -24,7 +24,7 @@ const robots = [
     status: 'active',
     location: 'factory-floor-b',
     batteryLevel: 92,
-    lastMaintenance: '2024-01-12T10:00:00Z',
+    lastMaintenance: '2025-10-12T10:00:00Z',
     createdAt: '2023-07-20T11:30:00Z'
   },
   {
@@ -34,7 +34,7 @@ const robots = [
     status: 'maintenance',
     location: 'maintenance-bay',
     batteryLevel: 45,
-    lastMaintenance: '2024-01-18T08:00:00Z',
+    lastMaintenance: '2025-10-18T08:00:00Z',
     createdAt: '2023-08-05T14:00:00Z'
   },
   {
@@ -44,7 +44,7 @@ const robots = [
     status: 'active',
     location: 'warehouse-1',
     batteryLevel: 78,
-    lastMaintenance: '2024-01-08T16:00:00Z',
+    lastMaintenance: '2025-10-08T16:00:00Z',
     createdAt: '2023-05-10T08:00:00Z'
   },
   {
@@ -54,7 +54,7 @@ const robots = [
     status: 'offline',
     location: 'factory-floor-a',
     batteryLevel: 12,
-    lastMaintenance: '2023-12-20T12:00:00Z',
+    lastMaintenance: '2025-09-20T12:00:00Z',
     createdAt: '2023-04-01T10:00:00Z'
   },
   {
@@ -64,7 +64,7 @@ const robots = [
     status: 'active',
     location: 'factory-floor-a',
     batteryLevel: 95,
-    lastMaintenance: '2024-01-15T09:00:00Z',
+    lastMaintenance: '2025-10-15T09:00:00Z',
     createdAt: '2023-09-12T08:30:00Z'
   },
   {
@@ -74,7 +74,7 @@ const robots = [
     status: 'active',
     location: 'factory-floor-b',
     batteryLevel: 68,
-    lastMaintenance: '2024-01-05T11:00:00Z',
+    lastMaintenance: '2025-09-25T11:00:00Z',
     createdAt: '2023-03-22T13:00:00Z'
   },
   {
@@ -84,7 +84,7 @@ const robots = [
     status: 'active',
     location: 'warehouse-2',
     batteryLevel: 54,
-    lastMaintenance: '2024-01-02T15:30:00Z',
+    lastMaintenance: '2025-09-30T15:30:00Z',
     createdAt: '2023-08-18T07:00:00Z'
   },
   {
@@ -94,7 +94,7 @@ const robots = [
     status: 'active',
     location: 'factory-floor-b',
     batteryLevel: 83,
-    lastMaintenance: '2024-01-14T10:00:00Z',
+    lastMaintenance: '2025-10-14T10:00:00Z',
     createdAt: '2023-10-05T09:30:00Z'
   },
   {
@@ -104,7 +104,7 @@ const robots = [
     status: 'maintenance',
     location: 'maintenance-bay',
     batteryLevel: 22,
-    lastMaintenance: '2024-01-17T14:00:00Z',
+    lastMaintenance: '2025-10-17T14:00:00Z',
     createdAt: '2023-02-14T11:00:00Z'
   },
   {
@@ -114,7 +114,7 @@ const robots = [
     status: 'active',
     location: 'factory-floor-a',
     batteryLevel: 76,
-    lastMaintenance: '2024-01-11T16:00:00Z',
+    lastMaintenance: '2025-10-11T16:00:00Z',
     createdAt: '2023-11-20T08:00:00Z'
   },
   {
@@ -124,7 +124,7 @@ const robots = [
     status: 'inactive',
     location: 'charging-station',
     batteryLevel: 100,
-    lastMaintenance: '2024-01-16T12:00:00Z',
+    lastMaintenance: '2025-10-16T12:00:00Z',
     createdAt: '2023-07-08T10:30:00Z'
   }
 ];
