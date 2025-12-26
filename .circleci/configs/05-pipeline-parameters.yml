@@ -1,116 +1,319 @@
-# Module 2 - Pipeline Parameters for Workflow Control
-# Demo: Clip 2 - Pipeline Parameters for Workflow Control
-# Parameters resolved at CONFIG TIME, before jobs run
+# ============================================================================
+# MODULE 2, DEMO 1: Pipeline Parameters
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Use pipeline parameters to create dynamic, configurable pipelines that
+#   can be customized at trigger time via the API or UI.
+#
+# KEY CONCEPTS:
+#   - Pipeline parameters are resolved at CONFIG TIME (before jobs run)
+#   - Parameters are set when the pipeline is triggered
+#   - Four types: string, boolean, integer, enum
+#   - Access with: << pipeline.parameters.PARAM_NAME >>
+#   - Use 'when' conditions for config-time logic
+#
+# PARAMETER TYPES:
+#   ┌─────────┬──────────────────────────────────────────────────────────┐
+#   │ Type    │ Description & Use Case                                  │
+#   ├─────────┼──────────────────────────────────────────────────────────┤
+#   │ string  │ Free-form text (e.g., version numbers, branch names)    │
+#   │ boolean │ true/false flags (e.g., skip-tests, enable-debug)       │
+#   │ integer │ Numeric values (e.g., retry counts, parallelism)        │
+#   │ enum    │ Constrained choice list (e.g., environments)            │
+#   └─────────┴──────────────────────────────────────────────────────────┘
+#
+# WORKFLOW DIAGRAM:
+#
+#   Pipeline Trigger (with parameters)
+#             │
+#             ▼
+#   ┌─────────────────────────────────────────────────────────────────┐
+#   │  CONFIG-TIME EVALUATION                                         │
+#   │  - Parameters are substituted into config                       │
+#   │  - 'when' conditions are evaluated                              │
+#   │  - Jobs are included/excluded based on conditions               │
+#   └─────────────────────────────────────────────────────────────────┘
+#             │
+#             ▼
+#   build ──► test (if skip-tests=false) ──► deploy
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. "Trigger Pipeline" button shows parameter form
+#   2. Pipeline shows which parameter values were used
+#   3. Skipped jobs show as "Not Run" (not failed)
+#   4. Different node versions use different Docker images
+#
+# ============================================================================
 
 version: 2.1
 
-# ============================================
+# ============================================================================
 # PIPELINE PARAMETERS
-# Set at pipeline trigger time via UI or API
-# ============================================
+# These are set at pipeline trigger time via UI or API
+# ============================================================================
 parameters:
-  # Boolean parameter - skip tests for hotfix deployments
+  # --------------------------------------------------------------------------
+  # BOOLEAN PARAMETER: skip-tests
+  # Use case: Emergency hotfixes that need immediate deployment
+  # WARNING: Use sparingly! Skipping tests is risky.
+  # --------------------------------------------------------------------------
   skip-tests:
     type: boolean
     default: false
-    description: "Skip test jobs for emergency hotfixes"
+    description: "Skip test jobs for emergency hotfixes (use with caution!)"
 
-  # Enum parameter - constrained to valid values
+  # --------------------------------------------------------------------------
+  # ENUM PARAMETER: deploy-environment
+  # Use case: Deploy to specific environment via API trigger
+  # Enum ensures only valid values are accepted
+  # --------------------------------------------------------------------------
   deploy-environment:
     type: enum
     enum: ["dev", "staging", "production"]
     default: "dev"
     description: "Target deployment environment"
 
-  # String parameter - Node.js version
+  # --------------------------------------------------------------------------
+  # STRING PARAMETER: node-version
+  # Use case: Test against different Node.js versions
+  # Used in Docker image tag: cimg/node:<version>
+  # --------------------------------------------------------------------------
   node-version:
     type: string
     default: "20"
-    description: "Node.js version for builds"
+    description: "Node.js version for builds (e.g., 18, 20, 21)"
 
-  # Integer parameter - number of test retries
+  # --------------------------------------------------------------------------
+  # INTEGER PARAMETER: test-retries
+  # Use case: Retry flaky tests automatically
+  # Used in a shell loop for retry logic
+  # --------------------------------------------------------------------------
   test-retries:
     type: integer
     default: 2
-    description: "Number of test retry attempts"
+    description: "Number of test retry attempts on failure"
 
+  # --------------------------------------------------------------------------
+  # BOOLEAN PARAMETER: enable-debug
+  # Use case: Extra logging for troubleshooting
+  # --------------------------------------------------------------------------
+  enable-debug:
+    type: boolean
+    default: false
+    description: "Enable verbose debug logging"
+
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Uses node-version parameter for Docker image
+  # --------------------------------------------------------------------------
   build:
     docker:
-      # Using pipeline parameter in executor
+      # Pipeline parameter in executor - sets Node.js version!
       - image: cimg/node:<< pipeline.parameters.node-version >>
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run build
 
+      - when:
+          condition: << pipeline.parameters.enable-debug >>
+          steps:
+            - run:
+                name: Debug - Show environment
+                command: |
+                  echo "╔════════════════════════════════════════╗"
+                  echo "║     DEBUG MODE ENABLED                 ║"
+                  echo "╠════════════════════════════════════════╣"
+                  echo "║  Node version: $(node --version)       ║"
+                  echo "║  npm version: $(npm --version)         ║"
+                  echo "║  Working dir: $(pwd)                   ║"
+                  echo "╚════════════════════════════════════════╝"
+                  env | sort
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
+      - run:
+          name: Build application
+          command: npm run build
+
+      - run:
+          name: Lint code
+          command: npm run lint
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
+
+  # --------------------------------------------------------------------------
+  # TEST JOB - Uses test-retries parameter for retry logic
+  # --------------------------------------------------------------------------
   test:
     docker:
       - image: cimg/node:<< pipeline.parameters.node-version >>
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
+      - attach_workspace:
+          at: .
+
       - run:
-          name: Run tests with retries
+          name: Run tests with retry logic
           command: |
-            for i in $(seq 1 << pipeline.parameters.test-retries >>); do
-              npm test && break
-              echo "Test attempt $i failed, retrying..."
+            echo "Running tests with up to << pipeline.parameters.test-retries >> retries..."
+
+            attempt=1
+            max_attempts=<< pipeline.parameters.test-retries >>
+
+            while [ $attempt -le $max_attempts ]; do
+              echo "Test attempt $attempt of $max_attempts"
+
+              if npm test; then
+                echo "Tests passed on attempt $attempt"
+                exit 0
+              fi
+
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Tests failed, retrying in 5 seconds..."
+                sleep 5
+              fi
+
+              attempt=$((attempt + 1))
             done
 
+            echo "Tests failed after $max_attempts attempts"
+            exit 1
+
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
+
+  # --------------------------------------------------------------------------
+  # DEPLOY JOB - Uses deploy-environment parameter
+  # --------------------------------------------------------------------------
   deploy:
     docker:
       - image: cimg/node:<< pipeline.parameters.node-version >>
+    working_directory: ~/project
     steps:
+      - attach_workspace:
+          at: .
       - run:
           name: Deploy to << pipeline.parameters.deploy-environment >>
           command: |
-            echo "Deploying to: << pipeline.parameters.deploy-environment >>"
-            echo "Node version: << pipeline.parameters.node-version >>"
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYMENT INITIATED                           ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Environment: << pipeline.parameters.deploy-environment >>"
+            echo "║  Node version: << pipeline.parameters.node-version >>"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}"
+            echo "║  Debug mode: << pipeline.parameters.enable-debug >>"
+            echo "╚════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Deploying Globomantics Robot Fleet API..."
+            echo "Deployment to << pipeline.parameters.deploy-environment >> complete!"
 
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
   build-test-deploy:
     jobs:
+      # Stage 1: Build always runs
       - build
 
-      # Conditional job execution using 'when'
-      # Tests are SKIPPED if skip-tests parameter is true
+      # ════════════════════════════════════════════════════════════════════
+      # Stage 2: Test - CONDITIONALLY INCLUDED
+      #
+      # The 'when' clause is evaluated at CONFIG TIME, not run time!
+      # If skip-tests=true, this job is completely removed from the workflow.
+      # ════════════════════════════════════════════════════════════════════
       - test:
           requires:
             - build
-          # This is CONFIG-TIME evaluation!
           when:
             not: << pipeline.parameters.skip-tests >>
 
+      # Stage 3: Deploy
       - deploy:
           requires:
             - build
-            # If tests were skipped, deploy only requires build
+            # This will be ignored if test job was skipped
             - test
           filters:
             branches:
               only: main
 
-# ============================================
+# ============================================================================
 # HOW TO TRIGGER WITH PARAMETERS
+# ============================================================================
+#
+# METHOD 1: CircleCI API (v2)
 # ============================================
-# Via CircleCI API:
 #
 # curl -X POST \
-#   https://circleci.com/api/v2/project/github/ORG/REPO/pipeline \
+#   "https://circleci.com/api/v2/project/github/timothywarner-org/advanced-circleci/pipeline" \
 #   -H "Circle-Token: $CIRCLECI_TOKEN" \
 #   -H "Content-Type: application/json" \
 #   -d '{
 #     "branch": "main",
 #     "parameters": {
-#       "skip-tests": true,
+#       "skip-tests": false,
 #       "deploy-environment": "production",
-#       "node-version": "18"
+#       "node-version": "20",
+#       "test-retries": 3,
+#       "enable-debug": true
 #     }
 #   }'
 #
-# Via CircleCI UI:
-# Project Settings → Pipelines → Trigger Pipeline
+# METHOD 2: CircleCI UI
 # ============================================
+# 1. Go to your project in CircleCI
+# 2. Click "Trigger Pipeline" button (top right)
+# 3. Fill in the parameter form
+# 4. Click "Trigger Pipeline"
+#
+# METHOD 3: GitHub Actions (for cross-platform workflows)
+# ============================================
+# Use the CircleCI orb in GitHub Actions to trigger with params
+#
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. When are pipeline parameters evaluated?
+#    Answer: At CONFIG TIME, before any jobs run. The config is "compiled"
+#    with parameter values substituted in.
+#
+# 2. What's the difference between pipeline parameters and environment variables?
+#    Answer: Pipeline params are config-time, env vars are run-time.
+#    Params can change which jobs run; env vars cannot.
+#
+# 3. Why use enum instead of string for deploy-environment?
+#    Answer: Enum validates input. You can't accidentally type "prod"
+#    instead of "production".
+#
+# 4. Can you change parameters after a pipeline starts?
+#    Answer: No! Parameters are set at trigger time and are immutable.
+#
+# BEST PRACTICES:
+#   - Always provide sensible defaults
+#   - Use enum for constrained choices
+#   - Document parameters with description field
+#   - Use boolean skip-* params sparingly
+#   - Test with different parameter combinations
+#
+# NEXT STEPS (Demo 2):
+#   - Job parameters for reusable job definitions
+#   - Passing values between jobs
+# ============================================================================

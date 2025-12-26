@@ -1,152 +1,365 @@
-# Module 2 - Commands: Reusable Step Sequences
-# Demo: Clip 5 - Commands — Reusable Step Sequences
-# Extract repeated steps into reusable "functions"
+# ============================================================================
+# MODULE 2, DEMO 3: Commands and Executors
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Create reusable commands (step sequences) and executors (environments)
+#   to eliminate duplication and ensure consistency across jobs.
+#
+# KEY CONCEPTS:
+#   - Commands: Reusable sequences of steps (like functions)
+#   - Executors: Reusable execution environments (docker, machine, macos)
+#   - Both support parameters for flexibility
+#   - Reduce YAML duplication by 60-80%
+#
+# THE PROBLEM: REPEATED STEPS
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  Every job has the same 10 lines for Node.js setup:                 │
+#   │                                                                      │
+#   │  job-1:              job-2:              job-3:                      │
+#   │    steps:              steps:              steps:                    │
+#   │    - checkout          - checkout          - checkout                │
+#   │    - restore_cache     - restore_cache     - restore_cache           │
+#   │    - npm ci            - npm ci            - npm ci                  │
+#   │    - save_cache        - save_cache        - save_cache              │
+#   │    - (actual work)     - (actual work)     - (actual work)           │
+#   │                                                                      │
+#   │  If we change caching strategy, we update 10 files!                  │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# THE SOLUTION: COMMANDS
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  Define once, use everywhere:                                        │
+#   │                                                                      │
+#   │  commands:                                                           │
+#   │    setup-node:                                                       │
+#   │      steps:                                                          │
+#   │        - checkout                                                    │
+#   │        - restore_cache...                                            │
+#   │        - npm ci                                                      │
+#   │        - save_cache...                                               │
+#   │                                                                      │
+#   │  job-1:              job-2:              job-3:                      │
+#   │    steps:              steps:              steps:                    │
+#   │    - setup-node        - setup-node        - setup-node              │
+#   │    - (actual work)     - (actual work)     - (actual work)           │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# COMMAND vs JOB PARAMETERS:
+#   - Commands are STEP-level reuse (called inside jobs)
+#   - Jobs are JOB-level reuse (called in workflows)
+#   - Use commands for repeated step sequences
+#   - Use parameterized jobs for repeated entire jobs
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Commands expand into their component steps
+#   2. Step names show parameter values substituted
+#   3. Failed steps within commands are easily identified
+#   4. Timing shows which command steps are slowest
+#
+# ============================================================================
 
 version: 2.1
 
-# ============================================
+# ============================================================================
+# EXECUTORS - Reusable Execution Environments
+# ============================================================================
+executors:
+  # --------------------------------------------------------------------------
+  # NODE EXECUTOR - For JavaScript/Node.js jobs
+  # --------------------------------------------------------------------------
+  node-executor:
+    docker:
+      - image: cimg/node:20.0
+    working_directory: ~/project
+    environment:
+      NODE_ENV: test
+      CI: true
+
+  # --------------------------------------------------------------------------
+  # DEPLOY EXECUTOR - For deployment jobs (lighter weight)
+  # --------------------------------------------------------------------------
+  deploy-executor:
+    docker:
+      - image: cimg/base:current
+    working_directory: ~/project
+    environment:
+      AZURE_CORE_OUTPUT: none
+
+# ============================================================================
 # COMMANDS - Reusable Step Sequences
-# Think of these as "functions" you can call from jobs
-# ============================================
+# Think of these as "functions" that you call from jobs
+# ============================================================================
 commands:
-  # Command 1: Node.js setup with caching
+  # --------------------------------------------------------------------------
+  # SETUP-NODE: Complete Node.js environment setup with caching
+  #
+  # This command handles:
+  # - Checking out code
+  # - Restoring cached dependencies
+  # - Installing dependencies
+  # - Saving cache for future runs
+  #
+  # Call with: - setup-node or - setup-node: { node-version: "18" }
+  # --------------------------------------------------------------------------
   setup-node:
     description: "Set up Node.js environment with dependency caching"
     parameters:
       node-version:
         type: string
         default: "20"
+        description: "Node.js version to use"
+      install-browsers:
+        type: boolean
+        default: false
+        description: "Install browsers for E2E testing"
     steps:
       - checkout
+
+      # Restore cached dependencies (fast path)
       - restore_cache:
           keys:
+            # Try exact match first
             - node-deps-v1-{{ checksum "package-lock.json" }}
+            # Fall back to most recent cache
             - node-deps-v1-
+
       - run:
-          name: Install Node.js << parameters.node-version >>
+          name: Display Node.js version
           command: |
-            curl -fsSL https://deb.nodesource.com/setup_<< parameters.node-version >>.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+            echo "╔════════════════════════════════════════╗"
+            echo "║     NODE.JS ENVIRONMENT SETUP          ║"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Node: $(node --version)"
+            echo "║  npm:  $(npm --version)"
+            echo "╚════════════════════════════════════════╝"
+
       - run:
           name: Install dependencies
           command: npm ci
+
+      # Optionally install browsers for E2E testing
+      - when:
+          condition: << parameters.install-browsers >>
+          steps:
+            - run:
+                name: Install Playwright browsers
+                command: npx playwright install --with-deps
+
+      # Save cache for future runs
       - save_cache:
           key: node-deps-v1-{{ checksum "package-lock.json" }}
           paths:
             - ./node_modules
 
-  # Command 2: Run tests with reporting
+  # --------------------------------------------------------------------------
+  # RUN-TESTS-WITH-REPORTING: Execute tests and handle results
+  #
+  # Standardizes how tests are run across all jobs:
+  # - Runs the appropriate test command
+  # - Stores test results for CircleCI insights
+  # - Stores coverage as artifact
+  # --------------------------------------------------------------------------
   run-tests-with-reporting:
     description: "Execute tests and store results/artifacts"
     parameters:
       test-type:
         type: string
         default: "unit"
+        description: "Type of tests to run (unit, integration, e2e)"
       coverage-threshold:
         type: integer
         default: 70
+        description: "Minimum coverage percentage required"
     steps:
       - run:
           name: Run << parameters.test-type >> tests
-          command: npm run test:<< parameters.test-type >>
-      - run:
-          name: Check coverage threshold
           command: |
-            echo "Checking coverage meets << parameters.coverage-threshold >>%..."
+            echo "╔════════════════════════════════════════╗"
+            echo "║     RUNNING << parameters.test-type >> TESTS"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Coverage threshold: << parameters.coverage-threshold >>%"
+            echo "╚════════════════════════════════════════╝"
+            npm run test:<< parameters.test-type >>
+
+      - run:
+          name: Verify coverage threshold
+          command: |
+            echo "Verifying coverage meets << parameters.coverage-threshold >>% threshold..."
+            # In real config, parse coverage report and verify
+
+      # Store test results for CircleCI Test Insights
       - store_test_results:
           path: test-results
+
+      # Store coverage report as downloadable artifact
       - store_artifacts:
           path: coverage
           destination: coverage-<< parameters.test-type >>
 
-  # Command 3: Azure deployment
+  # --------------------------------------------------------------------------
+  # DEPLOY-TO-AZURE: Complete Azure deployment workflow
+  #
+  # Encapsulates all Azure deployment steps:
+  # - Login to Azure
+  # - Build Docker image
+  # - Push to ACR
+  # - Update Container App
+  # --------------------------------------------------------------------------
   deploy-to-azure:
     description: "Deploy application to Azure Container Apps"
     parameters:
       resource-group:
         type: string
+        description: "Azure resource group name"
       app-name:
         type: string
+        description: "Container App name"
       environment:
         type: string
+        description: "Deployment environment (dev, staging, production)"
+      acr-server:
+        type: string
+        default: "globomanticsacr.azurecr.io"
+        description: "Azure Container Registry server"
     steps:
       - run:
-          name: Azure Login
+          name: Azure Login (OIDC)
           command: |
-            echo "Logging into Azure..."
-            # az login --service-principal...
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     AZURE AUTHENTICATION                           ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Using OIDC federated credentials                  ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            # az login --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID
+
       - run:
-          name: Build and Push Docker Image
+          name: Build Docker image
           command: |
             echo "Building Docker image..."
-            echo "docker build -t << parameters.app-name >>:${CIRCLE_SHA1} ."
-            echo "docker push acr.azurecr.io/<< parameters.app-name >>:${CIRCLE_SHA1}"
+            echo "docker build \\"
+            echo "  --build-arg BUILD_DATE=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\") \\"
+            echo "  --build-arg COMMIT_SHA=${CIRCLE_SHA1} \\"
+            echo "  -t << parameters.acr-server >>/<< parameters.app-name >>:${CIRCLE_SHA1} ."
+
+      - run:
+          name: Push to Azure Container Registry
+          command: |
+            echo "Pushing to ACR..."
+            echo "az acr login --name globomanticsacr"
+            echo "docker push << parameters.acr-server >>/<< parameters.app-name >>:${CIRCLE_SHA1}"
+
       - run:
           name: Deploy to << parameters.environment >>
           command: |
-            echo "Deploying to Azure Container Apps..."
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING TO << parameters.environment >>"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  App: << parameters.app-name >>                    ║"
+            echo "║  Resource Group: << parameters.resource-group >>   ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            echo ""
             echo "az containerapp update \\"
             echo "  --name << parameters.app-name >>-<< parameters.environment >> \\"
             echo "  --resource-group << parameters.resource-group >> \\"
-            echo "  --image acr.azurecr.io/<< parameters.app-name >>:${CIRCLE_SHA1}"
+            echo "  --image << parameters.acr-server >>/<< parameters.app-name >>:${CIRCLE_SHA1}"
 
-  # Command 4: Slack notification
+  # --------------------------------------------------------------------------
+  # NOTIFY-DEPLOYMENT: Send Slack notification about deployment
+  # --------------------------------------------------------------------------
   notify-deployment:
     description: "Send deployment notification to Slack"
     parameters:
       environment:
         type: string
+        description: "Environment that was deployed"
       status:
         type: string
         default: "success"
+        description: "Deployment status (success, failed)"
     steps:
       - run:
-          name: Notify Slack
+          name: Notify Slack - << parameters.status >>
           command: |
-            echo "Sending Slack notification..."
-            echo "Environment: << parameters.environment >>"
-            echo "Status: << parameters.status >>"
-            echo "Commit: ${CIRCLE_SHA1}"
+            echo "╔════════════════════════════════════════╗"
+            echo "║     SLACK NOTIFICATION                 ║"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Environment: << parameters.environment >>"
+            echo "║  Status: << parameters.status >>"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}"
+            echo "║  Branch: ${CIRCLE_BRANCH}"
+            echo "╚════════════════════════════════════════╝"
 
-# ============================================
+# ============================================================================
 # JOBS - Now much cleaner using commands!
-# ============================================
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Uses setup-node command
+  # --------------------------------------------------------------------------
   build:
-    docker:
-      - image: cimg/node:20.0
+    executor: node-executor
     steps:
-      # Just call the command!
       - setup-node:
           node-version: "20"
-      - run: npm run build
-      - run: npm run lint
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
 
+  # --------------------------------------------------------------------------
+  # UNIT TESTS - Uses setup-node and run-tests-with-reporting commands
+  # --------------------------------------------------------------------------
   unit-tests:
-    docker:
-      - image: cimg/node:20.0
+    executor: node-executor
     steps:
       - setup-node
       - run-tests-with-reporting:
           test-type: unit
           coverage-threshold: 80
 
+  # --------------------------------------------------------------------------
+  # INTEGRATION TESTS - Same commands, different parameters
+  # --------------------------------------------------------------------------
   integration-tests:
-    docker:
-      - image: cimg/node:20.0
+    executor: node-executor
     steps:
       - setup-node
       - run-tests-with-reporting:
           test-type: integration
           coverage-threshold: 70
 
+  # --------------------------------------------------------------------------
+  # E2E TESTS - Includes browser installation
+  # --------------------------------------------------------------------------
+  e2e-tests:
+    executor: node-executor
+    steps:
+      - setup-node:
+          install-browsers: true
+      - run-tests-with-reporting:
+          test-type: e2e
+          coverage-threshold: 60
+
+  # --------------------------------------------------------------------------
+  # DEPLOY - Combines parameterized job with commands
+  # --------------------------------------------------------------------------
   deploy:
     parameters:
       environment:
         type: string
-    docker:
-      - image: cimg/base:current
+    executor: deploy-executor
     steps:
+      - attach_workspace:
+          at: .
       - deploy-to-azure:
           resource-group: globomantics-robots
           app-name: robot-api
@@ -154,20 +367,84 @@ jobs:
       - notify-deployment:
           environment: << parameters.environment >>
 
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
+
   build-test-deploy:
     jobs:
       - build
+
+      # Fan-out: All test jobs use the same commands
       - unit-tests:
           requires:
             - build
       - integration-tests:
           requires:
             - build
+      - e2e-tests:
+          requires:
+            - build
+
+      # Fan-in: Deploy after all tests pass
       - deploy:
           name: deploy-staging
           environment: staging
           requires:
             - unit-tests
             - integration-tests
+            - e2e-tests
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. When should you use a command vs a parameterized job?
+#    Answer: Use commands for repeated steps within different jobs.
+#    Use parameterized jobs when the entire job structure repeats.
+#
+# 2. Can commands call other commands?
+#    Answer: Yes! Commands can include other commands in their steps.
+#    This enables composition and layered abstractions.
+#
+# 3. What's the benefit of executors over just defining docker in each job?
+#    Answer: Centralized environment management. Change the executor once,
+#    all jobs using it get updated. Also ensures consistency.
+#
+# 4. How do commands interact with workspaces?
+#    Answer: Commands can use attach_workspace and persist_to_workspace
+#    just like regular steps. The workspace is job-scoped.
+#
+# REUSE HIERARCHY:
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  LEVEL 1: Steps (basic building blocks)                             │
+#   │    - run, checkout, restore_cache, etc.                             │
+#   │                                                                      │
+#   │  LEVEL 2: Commands (reusable step sequences)                        │
+#   │    - setup-node, deploy-to-azure, etc.                              │
+#   │    - Can include steps and other commands                           │
+#   │                                                                      │
+#   │  LEVEL 3: Jobs (reusable job definitions with parameters)           │
+#   │    - Can include commands and steps                                 │
+#   │    - Called in workflows with different parameters                  │
+#   │                                                                      │
+#   │  LEVEL 4: Orbs (shareable packages of all the above)                │
+#   │    - Bundle executors, commands, and jobs                           │
+#   │    - Published and versioned in CircleCI registry                   │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# BEST PRACTICES:
+#   - Extract repeated 3+ step sequences into commands
+#   - Use descriptive command names (verb-noun pattern)
+#   - Provide sensible defaults for all optional parameters
+#   - Document commands with the 'description' field
+#   - Use executors for environment consistency
+#
+# NEXT STEPS (Module 3):
+#   - Introduction to orbs (pre-built commands, jobs, executors)
+#   - Using the CircleCI node orb
+# ============================================================================

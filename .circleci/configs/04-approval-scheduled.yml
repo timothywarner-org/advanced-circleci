@@ -1,66 +1,232 @@
-# Module 1 - Advanced Patterns
-# Demo: Clip 5 - Matrix and Scheduled Workflows
-# Manual approval gates and scheduled triggers
+# ============================================================================
+# MODULE 1, DEMO 4: Manual Approvals and Scheduled Workflows
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Implement manual approval gates for production deployments and configure
+#   scheduled workflows for automated maintenance tasks like security scans.
+#
+# KEY CONCEPTS:
+#   - type: approval - Creates a manual hold point in the workflow
+#   - triggers.schedule - Run workflows on a cron schedule
+#   - Cron syntax: minute hour day-of-month month day-of-week
+#   - Approval notifications and workflow state management
+#
+# WORKFLOW DIAGRAM:
+#
+#   MAIN WORKFLOW (on push to main):
+#
+#   build ──► test ──► deploy-staging ──► [HOLD] ──► deploy-production
+#                                            │
+#                                      (Manual Approval)
+#                                       Click to approve
+#                                        in CircleCI UI
+#
+#   SCHEDULED WORKFLOWS:
+#
+#   Daily (2 AM UTC):    security-scan ──► test
+#
+#   Weekly (Mon 9 AM):   dependency-update-check
+#
+# CRON SYNTAX REFERENCE:
+#   ┌───────────── minute (0 - 59)
+#   │ ┌───────────── hour (0 - 23)
+#   │ │ ┌───────────── day of the month (1 - 31)
+#   │ │ │ ┌───────────── month (1 - 12)
+#   │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
+#   │ │ │ │ │
+#   * * * * *
+#
+#   Examples:
+#   "0 2 * * *"    = 2:00 AM UTC daily
+#   "0 9 * * 1"    = 9:00 AM UTC every Monday
+#   "30 8 * * 1-5" = 8:30 AM UTC weekdays
+#   "0 0 1 * *"    = Midnight on 1st of each month
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Workflow pauses at approval step with "On Hold" status
+#   2. "Approve" button appears for authorized users
+#   3. Scheduled workflows appear in project's pipeline history
+#   4. Approval history shows who approved and when
+#
+# ============================================================================
 
 version: 2.1
 
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Standard build process
+  # --------------------------------------------------------------------------
   build:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run build
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
 
+  # --------------------------------------------------------------------------
+  # TEST JOB - Run full test suite
+  # --------------------------------------------------------------------------
   test:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm test
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run all tests
+          command: npm test
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
 
+  # --------------------------------------------------------------------------
+  # DEPLOY STAGING - Automatic deployment to staging
+  # --------------------------------------------------------------------------
   deploy-staging:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
-      - run: echo "Deploying to staging environment..."
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Staging Environment
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING TO STAGING                           ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Globomantics Robot Fleet API                      ║"
+            echo "║  Environment: staging                              ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}                        ║"
+            echo "║  Branch: ${CIRCLE_BRANCH}                          ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Running smoke tests on staging..."
+            echo "Staging deployment complete!"
 
+  # --------------------------------------------------------------------------
+  # DEPLOY PRODUCTION - Requires manual approval first!
+  # --------------------------------------------------------------------------
   deploy-production:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
-      - run: |
-          echo "🚀 Production deployment initiated!"
-          echo "Deploying commit: ${CIRCLE_SHA1}"
-          echo "Triggered by: ${CIRCLE_USERNAME}"
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Production Environment
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING TO PRODUCTION                        ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Globomantics Robot Fleet API                      ║"
+            echo "║  Environment: PRODUCTION                           ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}                        ║"
+            echo "║  Approved by: Manual approval in CircleCI          ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Deploying to production servers..."
+            echo "Updating load balancer..."
+            echo "Running health checks..."
+            echo "Production deployment complete!"
 
+  # --------------------------------------------------------------------------
+  # SECURITY SCAN - Scheduled daily to catch new vulnerabilities
+  # --------------------------------------------------------------------------
   security-scan:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm audit
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Security Vulnerability Audit
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     SECURITY VULNERABILITY SCAN                    ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Running npm audit...                              ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            npm audit --json > security-report.json || true
+            npm audit
+      - store_artifacts:
+          path: security-report.json
+          destination: security-report
 
+  # --------------------------------------------------------------------------
+  # DEPENDENCY UPDATE CHECK - Weekly scan for outdated packages
+  # --------------------------------------------------------------------------
   dependency-update-check:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm outdated || true
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Check for Outdated Dependencies
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPENDENCY UPDATE CHECK                        ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Checking for outdated npm packages...             ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            npm outdated || true
+            echo ""
+            echo "Consider updating packages with security patches."
 
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
-  # Main workflow with MANUAL APPROVAL for production
+  # --------------------------------------------------------------------------
+  # MAIN WORKFLOW - With manual approval gate for production
+  #
+  # This demonstrates the "approval" job type which pauses the workflow
+  # until a human clicks "Approve" in the CircleCI UI.
+  # --------------------------------------------------------------------------
   build-test-deploy:
     jobs:
+      # Stage 1: Build
       - build
+
+      # Stage 2: Test
       - test:
           requires:
             - build
+
+      # Stage 3: Deploy to Staging (automatic)
       - deploy-staging:
           requires:
             - test
@@ -68,8 +234,19 @@ workflows:
             branches:
               only: main
 
-      # APPROVAL JOB - Pauses workflow until manually approved
-      # Use case: Manager sign-off before production deployment
+      # ════════════════════════════════════════════════════════════════════
+      # APPROVAL JOB
+      #
+      # This is a special job type that pauses the workflow.
+      # The workflow will show "On Hold" status until someone
+      # clicks "Approve" in the CircleCI UI.
+      #
+      # Use cases:
+      #   - Manager sign-off before production
+      #   - QA team verification after staging
+      #   - Change control board approval
+      #   - Scheduled maintenance windows
+      # ════════════════════════════════════════════════════════════════════
       - hold-for-approval:
           type: approval
           requires:
@@ -78,7 +255,7 @@ workflows:
             branches:
               only: main
 
-      # Production deploy only runs AFTER manual approval
+      # Stage 5: Deploy to Production (after approval)
       - deploy-production:
           requires:
             - hold-for-approval
@@ -86,28 +263,79 @@ workflows:
             branches:
               only: main
 
-  # SCHEDULED WORKFLOW - Nightly builds
-  # Runs automatically at 2 AM UTC every day
+  # --------------------------------------------------------------------------
+  # SCHEDULED WORKFLOW - Nightly Security Scan
+  #
+  # Runs automatically at 2 AM UTC every day.
+  # Catches new vulnerabilities in dependencies even when no code changes.
+  # --------------------------------------------------------------------------
   nightly-security-scan:
     triggers:
       - schedule:
-          # Cron syntax: minute hour day-of-month month day-of-week
-          cron: "0 2 * * *"  # 2:00 AM UTC daily
+          # Cron: At 2:00 AM UTC, every day
+          cron: "0 2 * * *"
           filters:
             branches:
               only: main
     jobs:
       - security-scan
-      - test
+      - test:
+          requires:
+            - security-scan
 
-  # SCHEDULED WORKFLOW - Weekly dependency check
-  # Runs every Monday at 9 AM UTC
+  # --------------------------------------------------------------------------
+  # SCHEDULED WORKFLOW - Weekly Dependency Check
+  #
+  # Runs every Monday at 9 AM UTC.
+  # Provides a report of outdated packages for the team to review.
+  # --------------------------------------------------------------------------
   weekly-dependency-check:
     triggers:
       - schedule:
-          cron: "0 9 * * 1"  # 9:00 AM UTC on Mondays
+          # Cron: At 9:00 AM UTC, every Monday
+          cron: "0 9 * * 1"
           filters:
             branches:
               only: main
     jobs:
       - dependency-update-check
+
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. Who can approve a held workflow?
+#    Answer: Any user with write access to the project by default.
+#    You can configure required approvals in organization settings.
+#
+# 2. What happens if no one approves for 15 days?
+#    Answer: The workflow automatically times out and is marked as failed.
+#
+# 3. Can you have multiple approval steps in one workflow?
+#    Answer: Yes! You could have dev→staging approval, then staging→prod.
+#
+# 4. Why run security scans on a schedule instead of every commit?
+#    Answer: New CVEs are published daily. Your code might become
+#    vulnerable without any changes to your repository.
+#
+# BEST PRACTICES:
+#   - Use approval gates for production deployments
+#   - Schedule security scans daily
+#   - Schedule dependency checks weekly
+#   - Set up Slack/email notifications for scheduled workflow failures
+#   - Document who can approve and when approvals are needed
+#
+# COMMON MISTAKES:
+#   - Forgetting to apply branch filters to approval jobs
+#   - Not monitoring scheduled workflow failures
+#   - Using approval as the ONLY gate (add tests too!)
+#
+# CIRCLECI UI TIPS:
+#   - Check "Pipelines" to see scheduled workflow runs
+#   - "On Hold" badge appears for workflows awaiting approval
+#   - Click the job to see the "Approve" button
+#   - Approval audit trail is in job details
+#
+# NEXT STEPS (Module 2):
+#   - Pipeline parameters for dynamic configuration
+#   - Job parameters for reusable job definitions
+# ============================================================================

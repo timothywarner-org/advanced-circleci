@@ -1,133 +1,404 @@
-# Module 3 - Azure CLI Orb with OIDC Authentication
-# Demo: Clip 4 - Cloud Deployment Orbs — Azure Integration
-# Secure, passwordless Azure deployment using OIDC
+# ============================================================================
+# MODULE 3, DEMO 3: Azure CLI Orb with OIDC Authentication
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Deploy to Azure Container Apps using the Azure CLI orb with secure,
+#   passwordless OIDC (OpenID Connect) authentication.
+#
+# KEY CONCEPTS:
+#   - OIDC: Secure, tokenless authentication to cloud providers
+#   - Azure CLI orb: Install and configure Azure CLI automatically
+#   - Docker layer caching: Speed up image builds
+#   - Container Apps: Serverless container platform
+#
+# WHY OIDC INSTEAD OF SERVICE PRINCIPAL SECRETS?
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  OLD WAY: Service Principal with Secret                             │
+#   │                                                                      │
+#   │  Problems:                                                           │
+#   │  - Secrets stored in CircleCI (security risk)                        │
+#   │  - Secrets can be leaked in logs                                     │
+#   │  - Secrets expire and need rotation                                  │
+#   │  - Secrets can be copied to other systems                            │
+#   └─────────────────────────────────────────────────────────────────────┘
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  NEW WAY: OIDC Federated Identity                                    │
+#   │                                                                      │
+#   │  Benefits:                                                           │
+#   │  - NO secrets stored anywhere                                        │
+#   │  - Token issued per-job, expires immediately                         │
+#   │  - Cannot be copied or reused                                        │
+#   │  - Scoped to specific CircleCI org/project                           │
+#   │  - Audit trail in Azure AD                                           │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# DEPLOYMENT ARCHITECTURE:
+#
+#   CircleCI Pipeline
+#         │
+#         │ 1. OIDC Token Request
+#         ▼
+#   ┌─────────────────┐
+#   │   Azure AD      │ ◄── Federated Credential validates:
+#   │                 │     - Issuer (CircleCI)
+#   └────────┬────────┘     - Subject (org/project/user)
+#            │
+#            │ 2. Access Token (short-lived)
+#            ▼
+#   ┌─────────────────┐     ┌─────────────────┐
+#   │  Azure CLI      │────►│  ACR            │  3. Push Docker image
+#   │  (in CircleCI)  │     │  (Container     │
+#   └────────┬────────┘     │   Registry)     │
+#            │              └─────────────────┘
+#            │
+#            │ 4. Update Container App
+#            ▼
+#   ┌─────────────────────────────────────────┐
+#   │     Azure Container Apps                 │
+#   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+#   │  │   Dev    │ │ Staging  │ │   Prod   │ │
+#   │  └──────────┘ └──────────┘ └──────────┘ │
+#   └─────────────────────────────────────────┘
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. azure-cli/install step downloads and configures CLI
+#   2. azure-cli/login-with-oidc authenticates without secrets
+#   3. Docker build/push shows layer caching in action
+#   4. Deployment step shows Azure CLI output
+#
+# ============================================================================
 
 version: 2.1
 
+# ============================================================================
+# ORBS
+# ============================================================================
 orbs:
   node: circleci/node@5.2.0
   slack: circleci/slack@4.13.3
-  # Azure CLI orb for cloud deployments
+  # Azure CLI orb - provides install and login commands
+  # https://circleci.com/developer/orbs/orb/circleci/azure-cli
   azure-cli: circleci/azure-cli@1.2.2
 
-# ============================================
+# ============================================================================
 # EXECUTORS
-# ============================================
+# ============================================================================
 executors:
+  # Executor for Azure deployments
   azure-executor:
     docker:
       - image: cimg/base:current
+    working_directory: ~/project
     environment:
-      # Azure configuration from environment
+      # Default resource group (can be overridden)
       AZURE_RESOURCE_GROUP: globomantics-robots
+      # Suppress Azure CLI telemetry
+      AZURE_CORE_COLLECT_TELEMETRY: "false"
 
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Build and prepare artifacts
+  # --------------------------------------------------------------------------
   build:
-    executor: node/default
+    executor:
+      name: node/default
+      tag: "20"
     steps:
       - checkout
       - node/install-packages
-      - run: npm run build
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
       - persist_to_workspace:
           root: .
           paths:
-            - .
+            - node_modules
+            - dist
+            - public
+            - package.json
+            - Dockerfile
 
+  # --------------------------------------------------------------------------
+  # TEST JOB - Run all tests
+  # --------------------------------------------------------------------------
   test:
-    executor: node/default
+    executor:
+      name: node/default
+      tag: "20"
     steps:
       - checkout
       - node/install-packages
-      - run: npm test
+      - run:
+          name: Run tests
+          command: npm test
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
 
-  # Azure deployment job
+  # --------------------------------------------------------------------------
+  # DEPLOY-AZURE JOB - Full Azure deployment with OIDC
+  # --------------------------------------------------------------------------
   deploy-azure:
     parameters:
       environment:
         type: string
         default: "dev"
+        description: "Target environment (dev, staging, production)"
+      resource-group:
+        type: string
+        default: "globomantics-robots"
+        description: "Azure resource group name"
+      app-name:
+        type: string
+        default: "robot-api"
+        description: "Container App name prefix"
+
     executor: azure-executor
+
     steps:
       - attach_workspace:
           at: .
 
-      # Enable Docker for building images
+      # ════════════════════════════════════════════════════════════════════
+      # DOCKER SETUP
+      # Enable Docker-in-Docker with layer caching for faster builds
+      # ════════════════════════════════════════════════════════════════════
       - setup_remote_docker:
           docker_layer_caching: true
+          version: "20.10.24"
 
-      # Install Azure CLI using the orb
+      # ════════════════════════════════════════════════════════════════════
+      # AZURE CLI INSTALLATION
+      # The orb handles downloading and installing Azure CLI
+      # ════════════════════════════════════════════════════════════════════
       - azure-cli/install
 
-      # OIDC login - NO PASSWORDS STORED!
-      # Uses federated credentials configured in Azure AD
+      # ════════════════════════════════════════════════════════════════════
+      # OIDC AUTHENTICATION
+      #
+      # This is the key step - NO SECRETS NEEDED!
+      # The orb requests an OIDC token from CircleCI and exchanges it
+      # for an Azure access token using federated credentials.
+      #
+      # Required environment variables (from Context):
+      #   - AZURE_CLIENT_ID: Azure AD App Registration ID
+      #   - AZURE_TENANT_ID: Azure AD Tenant ID
+      #   - AZURE_SUBSCRIPTION_ID: Azure Subscription ID
+      # ════════════════════════════════════════════════════════════════════
       - azure-cli/login-with-oidc
 
-      # Build and push Docker image
+      - run:
+          name: Verify Azure login
+          command: |
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║     AZURE AUTHENTICATION SUCCESSFUL                        ║"
+            echo "╠════════════════════════════════════════════════════════════╣"
+            echo "║  Using OIDC Federated Identity                             ║"
+            echo "║  No secrets stored or transmitted!                         ║"
+            echo "╚════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Subscription: $(az account show --query name -o tsv)"
+            echo "Tenant: $(az account show --query tenantId -o tsv)"
+
+      # ════════════════════════════════════════════════════════════════════
+      # DOCKER BUILD
+      # Build with OCI labels for traceability
+      # ════════════════════════════════════════════════════════════════════
       - run:
           name: Build Docker image
           command: |
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║     BUILDING DOCKER IMAGE                                  ║"
+            echo "╠════════════════════════════════════════════════════════════╣"
+            echo "║  Registry: ${ACR_LOGIN_SERVER}                             ║"
+            echo "║  Image: << parameters.app-name >>                          ║"
+            echo "║  Tag: ${CIRCLE_SHA1}                                       ║"
+            echo "╚════════════════════════════════════════════════════════════╝"
+
             docker build \
               --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
               --build-arg COMMIT_SHA=${CIRCLE_SHA1} \
-              -t ${ACR_LOGIN_SERVER}/robot-api:${CIRCLE_SHA1} \
-              -t ${ACR_LOGIN_SERVER}/robot-api:latest .
+              --build-arg CIRCLE_BUILD_NUM=${CIRCLE_BUILD_NUM} \
+              --label "org.opencontainers.image.created=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+              --label "org.opencontainers.image.revision=${CIRCLE_SHA1}" \
+              --label "org.opencontainers.image.source=${CIRCLE_REPOSITORY_URL}" \
+              -t ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:${CIRCLE_SHA1} \
+              -t ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:latest \
+              -t ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:<< parameters.environment >> .
 
+      # ════════════════════════════════════════════════════════════════════
+      # PUSH TO ACR
+      # Azure CLI handles ACR authentication automatically
+      # ════════════════════════════════════════════════════════════════════
       - run:
           name: Push to Azure Container Registry
           command: |
-            # Login to ACR using Azure CLI
+            echo "Logging into ACR..."
             az acr login --name ${ACR_NAME}
 
-            # Push images
-            docker push ${ACR_LOGIN_SERVER}/robot-api:${CIRCLE_SHA1}
-            docker push ${ACR_LOGIN_SERVER}/robot-api:latest
+            echo "Pushing images..."
+            docker push ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:${CIRCLE_SHA1}
+            docker push ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:latest
+            docker push ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:<< parameters.environment >>
 
+            echo "Push complete!"
+
+      # ════════════════════════════════════════════════════════════════════
+      # DEPLOY TO CONTAINER APPS
+      # Update the Container App with the new image
+      # ════════════════════════════════════════════════════════════════════
       - run:
-          name: Deploy to Azure Container Apps
+          name: Deploy to << parameters.environment >>
           command: |
-            echo "Deploying to << parameters.environment >> environment..."
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING TO AZURE CONTAINER APPS                      ║"
+            echo "╠════════════════════════════════════════════════════════════╣"
+            echo "║  Environment: << parameters.environment >>"
+            echo "║  App: << parameters.app-name >>-<< parameters.environment >>"
+            echo "║  Resource Group: << parameters.resource-group >>"
+            echo "╚════════════════════════════════════════════════════════════╝"
 
             az containerapp update \
-              --name robot-api-<< parameters.environment >> \
-              --resource-group ${AZURE_RESOURCE_GROUP} \
-              --image ${ACR_LOGIN_SERVER}/robot-api:${CIRCLE_SHA1}
+              --name << parameters.app-name >>-<< parameters.environment >> \
+              --resource-group << parameters.resource-group >> \
+              --image ${ACR_LOGIN_SERVER}/<< parameters.app-name >>:${CIRCLE_SHA1} \
+              --output none
 
             # Get the app URL
             APP_URL=$(az containerapp show \
-              --name robot-api-<< parameters.environment >> \
-              --resource-group ${AZURE_RESOURCE_GROUP} \
+              --name << parameters.app-name >>-<< parameters.environment >> \
+              --resource-group << parameters.resource-group >> \
               --query properties.configuration.ingress.fqdn -o tsv)
 
+            echo ""
             echo "Deployed to: https://${APP_URL}"
+            echo ""
 
+      # ════════════════════════════════════════════════════════════════════
+      # HEALTH CHECK
+      # Verify the deployment is healthy
+      # ════════════════════════════════════════════════════════════════════
       - run:
-          name: Verify deployment
+          name: Verify deployment health
           command: |
             APP_URL=$(az containerapp show \
-              --name robot-api-<< parameters.environment >> \
-              --resource-group ${AZURE_RESOURCE_GROUP} \
+              --name << parameters.app-name >>-<< parameters.environment >> \
+              --resource-group << parameters.resource-group >> \
               --query properties.configuration.ingress.fqdn -o tsv)
 
-            # Health check
-            curl -f https://${APP_URL}/api/health || exit 1
-            echo "Health check passed!"
+            echo "Running health check against https://${APP_URL}/api/health..."
 
+            # Retry health check up to 5 times (app may be starting)
+            for i in {1..5}; do
+              if curl -sf "https://${APP_URL}/api/health" > /dev/null; then
+                echo "Health check passed!"
+                exit 0
+              fi
+              echo "Attempt $i failed, waiting 10s..."
+              sleep 10
+            done
+
+            echo "Health check failed after 5 attempts"
+            exit 1
+
+      # ════════════════════════════════════════════════════════════════════
+      # SLACK NOTIFICATION
+      # Notify on success or failure
+      # ════════════════════════════════════════════════════════════════════
+      - slack/notify:
+          channel: deployments
+          event: pass
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Azure Deployment Successful",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*App:*\n<< parameters.app-name >>"},
+                    {"type": "mrkdwn", "text": "*Environment:*\n<< parameters.environment >>"},
+                    {"type": "mrkdwn", "text": "*Commit:*\n${CIRCLE_SHA1:0:7}"},
+                    {"type": "mrkdwn", "text": "*Pipeline:*\n#${CIRCLE_BUILD_NUM}"}
+                  ]
+                }
+              ]
+            }
+
+      - slack/notify:
+          channel: deployments
+          event: fail
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Azure Deployment FAILED",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Deployment to *<< parameters.environment >>* failed. Please investigate."
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {"type": "plain_text", "text": "View Build"},
+                      "url": "${CIRCLE_BUILD_URL}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
   build-test-deploy:
     jobs:
       - build
+
       - test:
           requires:
             - build
 
+      # ════════════════════════════════════════════════════════════════════
+      # DEV DEPLOYMENT
+      # Runs on develop and feature branches
+      # ════════════════════════════════════════════════════════════════════
       - deploy-azure:
           name: deploy-dev
           environment: dev
           context:
-            - azure-oidc
-            - slack-notifications
+            - azure-oidc         # Azure credentials
+            - slack-notifications # Slack token
           requires:
             - test
           filters:
@@ -136,6 +407,10 @@ workflows:
                 - develop
                 - /feature\/.*/
 
+      # ════════════════════════════════════════════════════════════════════
+      # STAGING DEPLOYMENT
+      # Runs on main branch
+      # ════════════════════════════════════════════════════════════════════
       - deploy-azure:
           name: deploy-staging
           environment: staging
@@ -148,6 +423,10 @@ workflows:
             branches:
               only: main
 
+      # ════════════════════════════════════════════════════════════════════
+      # PRODUCTION APPROVAL
+      # Manual gate before production deployment
+      # ════════════════════════════════════════════════════════════════════
       - hold-production:
           type: approval
           requires:
@@ -156,11 +435,16 @@ workflows:
             branches:
               only: main
 
+      # ════════════════════════════════════════════════════════════════════
+      # PRODUCTION DEPLOYMENT
+      # Uses separate context for production isolation
+      # ════════════════════════════════════════════════════════════════════
       - deploy-azure:
           name: deploy-production
           environment: production
+          resource-group: globomantics-prod  # Separate resource group
           context:
-            - azure-oidc-prod
+            - azure-oidc-prod    # Separate credentials for prod
             - slack-notifications
           requires:
             - hold-production
@@ -168,17 +452,89 @@ workflows:
             branches:
               only: main
 
-# ============================================
-# AZURE OIDC SETUP:
-# 1. Create Azure AD App Registration
-# 2. Add Federated Credential for CircleCI:
-#    - Issuer: https://oidc.circleci.com/org/<ORG_ID>
-#    - Subject: org/<ORG_ID>/project/<PROJECT_ID>/user/<USER_ID>
-# 3. Grant App Registration access to Azure resources
-# 4. In CircleCI Context 'azure-oidc', set:
-#    - AZURE_CLIENT_ID
-#    - AZURE_TENANT_ID
-#    - AZURE_SUBSCRIPTION_ID
-#    - ACR_NAME
-#    - ACR_LOGIN_SERVER
-# ============================================
+# ============================================================================
+# AZURE OIDC SETUP GUIDE
+# ============================================================================
+#
+# STEP 1: Create Azure AD App Registration
+#   az ad app create --display-name "CircleCI-Globomantics"
+#   APP_ID=$(az ad app list --display-name "CircleCI-Globomantics" --query "[0].appId" -o tsv)
+#
+# STEP 2: Create Service Principal
+#   az ad sp create --id $APP_ID
+#
+# STEP 3: Get Your CircleCI Organization ID
+#   - Go to: https://app.circleci.com/settings/organization
+#   - Copy the Organization ID (UUID format)
+#
+# STEP 4: Add Federated Credential
+#   az ad app federated-credential create --id $APP_ID --parameters '{
+#     "name": "CircleCI-OIDC",
+#     "issuer": "https://oidc.circleci.com/org/YOUR_ORG_ID",
+#     "subject": "org/YOUR_ORG_ID/project/YOUR_PROJECT_ID/user/*",
+#     "audiences": ["YOUR_ORG_ID"]
+#   }'
+#
+# STEP 5: Grant Azure Permissions
+#   SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+#
+#   # Contributor on resource group
+#   az role assignment create \
+#     --assignee $APP_ID \
+#     --role "Contributor" \
+#     --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/globomantics-robots"
+#
+#   # AcrPush on container registry
+#   az role assignment create \
+#     --assignee $APP_ID \
+#     --role "AcrPush" \
+#     --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/globomantics-robots"
+#
+# STEP 6: Create CircleCI Context
+#   Context name: "azure-oidc"
+#   Variables:
+#     - AZURE_CLIENT_ID: <App Registration Application ID>
+#     - AZURE_TENANT_ID: <Azure AD Tenant ID>
+#     - AZURE_SUBSCRIPTION_ID: <Azure Subscription ID>
+#     - ACR_NAME: <Container Registry name, e.g., globomanticsacr>
+#     - ACR_LOGIN_SERVER: <Registry URL, e.g., globomanticsacr.azurecr.io>
+#
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. Why use OIDC instead of storing Azure credentials?
+#    Answer: OIDC provides short-lived tokens that can't be stolen or reused.
+#    No secrets to rotate or leak.
+#
+# 2. Why use separate contexts for dev vs production?
+#    Answer: Isolation! Production Azure credentials should only be
+#    accessible to the production deployment job.
+#
+# 3. What happens if the OIDC token expires during deployment?
+#    Answer: Azure CLI handles token refresh automatically. Each command
+#    gets a fresh token if needed.
+#
+# 4. Can other CI/CD systems use the same Azure federated credential?
+#    Answer: No! The credential is scoped to a specific issuer (CircleCI)
+#    and subject (your org/project).
+#
+# TROUBLESHOOTING:
+#   - "AADSTS700016": Check federated credential issuer URL
+#   - "AADSTS70021": Check subject claim matches exactly
+#   - "AuthorizationFailed": Check role assignments on Azure resources
+#   - ACR login fails: Ensure AcrPush role is assigned
+#
+# BEST PRACTICES:
+#   - Use separate Azure subscriptions for prod
+#   - Limit federated credential scope (use project ID, not wildcard)
+#   - Enable Azure AD sign-in logs for audit trail
+#   - Use managed identity for Container Apps (not service principal)
+#
+# COURSE SUMMARY:
+#   Module 1: Workflow orchestration (sequential, parallel, filters, approvals)
+#   Module 2: Configuration reuse (parameters, commands, executors)
+#   Module 3: Orbs (node, slack, azure-cli with OIDC)
+#
+#   You now have production-ready CircleCI pipelines for the
+#   Globomantics Robot Fleet API!
+# ============================================================================

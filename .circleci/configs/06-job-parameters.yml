@@ -1,145 +1,318 @@
-# Module 2 - Job Parameters for Reusable Job Definitions
-# Demo: Clip 3 - Job Parameters for Reusable Job Definitions
-# Transform 3 nearly-identical jobs into 1 parameterized job
+# ============================================================================
+# MODULE 2, DEMO 2: Job Parameters
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Define parameterized jobs to eliminate duplication and create reusable
+#   job definitions that can be called multiple times with different values.
+#
+# KEY CONCEPTS:
+#   - Job parameters vs pipeline parameters (job-level vs trigger-time)
+#   - DRY principle: Don't Repeat Yourself
+#   - Parameter types: string, boolean, integer, enum
+#   - Access with: << parameters.PARAM_NAME >> (note: no "job." prefix!)
+#   - The 'name' key in workflows creates unique job instances
+#
+# THE PROBLEM: DUPLICATE JOBS
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  BEFORE: Three nearly identical deploy jobs (60+ lines!)            │
+#   │                                                                      │
+#   │  deploy-dev:        deploy-staging:      deploy-production:         │
+#   │    steps:             steps:               steps:                    │
+#   │    - az login         - az login           - az login                │
+#   │    - deploy dev       - deploy staging     - deploy prod             │
+#   │    - notify slack     - notify slack       - notify slack            │
+#   │                                                                      │
+#   │  95% of the code is IDENTICAL! Only the environment differs.        │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# THE SOLUTION: PARAMETERIZED JOB
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  AFTER: One parameterized job used three times (~25 lines!)         │
+#   │                                                                      │
+#   │  deploy:                                                             │
+#   │    parameters:                                                       │
+#   │      environment: string                                             │
+#   │    steps:                                                            │
+#   │      - az login                                                      │
+#   │      - deploy << parameters.environment >>                           │
+#   │      - notify slack                                                  │
+#   │                                                                      │
+#   │  workflows:                                                          │
+#   │    - deploy: { name: deploy-dev, environment: dev }                  │
+#   │    - deploy: { name: deploy-staging, environment: staging }          │
+#   │    - deploy: { name: deploy-production, environment: production }    │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# WORKFLOW DIAGRAM:
+#
+#   build ──► test ──┬─► deploy (dev)        [develop branch]
+#                    │
+#                    ├─► deploy (staging) ──► deploy (production)  [main]
+#                    │
+#                    └── Same job definition, different parameters!
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Three separate jobs appear: deploy-dev, deploy-staging, deploy-production
+#   2. Each shows different parameter values in job details
+#   3. All three share the same underlying job definition
+#   4. Conditional steps (notify-slack) only run when condition is true
+#
+# ============================================================================
 
 version: 2.1
 
-# ============================================
-# BEFORE: Three duplicate deploy jobs (60+ lines)
-# ============================================
-# jobs:
-#   deploy-dev:
-#     docker: [image: cimg/node:20]
-#     steps:
-#       - run: az login...
-#       - run: az containerapp update --name robot-api-dev...
-#       - run: curl slack-webhook "Deployed to DEV"
-#
-#   deploy-staging:
-#     docker: [image: cimg/node:20]
-#     steps:
-#       - run: az login...
-#       - run: az containerapp update --name robot-api-staging...
-#       - run: curl slack-webhook "Deployed to STAGING"
-#
-#   deploy-production:
-#     docker: [image: cimg/node:20]
-#     steps:
-#       - run: az login...
-#       - run: az containerapp update --name robot-api-production...
-#       - run: curl slack-webhook "Deployed to PRODUCTION"
-
-# ============================================
-# AFTER: One parameterized deploy job (~25 lines)
-# ============================================
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Standard build process
+  # --------------------------------------------------------------------------
   build:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run build
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
 
+  # --------------------------------------------------------------------------
+  # TEST JOB - Run test suite
+  # --------------------------------------------------------------------------
   test:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm test
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run tests
+          command: npm test
+      - store_test_results:
+          path: test-results
 
-  # PARAMETERIZED JOB - One job, multiple uses
+  # --------------------------------------------------------------------------
+  # DEPLOY JOB - Parameterized for reuse across environments
+  #
+  # This single job definition replaces THREE separate jobs!
+  # Parameters allow customization at workflow invocation time.
+  # --------------------------------------------------------------------------
   deploy:
-    # Job parameters defined here
+    # ════════════════════════════════════════════════════════════════════
+    # JOB PARAMETERS
+    # These are set when the job is called in the workflow section.
+    # Different from pipeline parameters which are set at trigger time.
+    # ════════════════════════════════════════════════════════════════════
     parameters:
+      # Required parameter - no default means it must be provided
       environment:
         type: string
         description: "Target environment (dev, staging, production)"
+
+      # Optional parameters with defaults
       replicas:
         type: integer
         default: 1
-        description: "Number of container replicas"
+        description: "Number of container replicas to deploy"
+
       notify-slack:
         type: boolean
         default: true
-        description: "Send Slack notification on deploy"
+        description: "Send Slack notification after deployment"
+
       resource-group:
         type: string
         default: "globomantics-robots"
-        description: "Azure resource group"
+        description: "Azure resource group name"
+
+      health-check-timeout:
+        type: integer
+        default: 30
+        description: "Seconds to wait for health check"
 
     docker:
       - image: cimg/base:current
+    working_directory: ~/project
 
     steps:
+      - attach_workspace:
+          at: .
+
+      # ════════════════════════════════════════════════════════════════════
+      # DEPLOYMENT STEP - Uses parameters for dynamic configuration
+      # ════════════════════════════════════════════════════════════════════
       - run:
           name: Deploy to << parameters.environment >>
           command: |
-            echo "=========================================="
-            echo "Deploying Globomantics Robot API"
-            echo "=========================================="
-            echo "Environment: << parameters.environment >>"
-            echo "Replicas: << parameters.replicas >>"
-            echo "Resource Group: << parameters.resource-group >>"
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING GLOBOMANTICS ROBOT FLEET API                 ║"
+            echo "╠════════════════════════════════════════════════════════════╣"
+            echo "║  Environment:   << parameters.environment >>"
+            echo "║  Replicas:      << parameters.replicas >>"
+            echo "║  Resource Group: << parameters.resource-group >>"
+            echo "║  Commit:        ${CIRCLE_SHA1:0:7}"
+            echo "╚════════════════════════════════════════════════════════════╝"
             echo ""
-            echo "Simulating Azure deployment..."
+            echo "Simulating Azure Container Apps deployment..."
+            echo ""
             echo "az containerapp update \\"
             echo "  --name robot-api-<< parameters.environment >> \\"
             echo "  --resource-group << parameters.resource-group >> \\"
-            echo "  --replica-count << parameters.replicas >>"
+            echo "  --min-replicas << parameters.replicas >> \\"
+            echo "  --max-replicas $(( << parameters.replicas >> * 3 ))"
+            echo ""
+            echo "Deployment to << parameters.environment >> complete!"
 
-      # Conditional step using parameter
+      # ════════════════════════════════════════════════════════════════════
+      # HEALTH CHECK - Waits for application to be ready
+      # ════════════════════════════════════════════════════════════════════
+      - run:
+          name: Health check (<< parameters.health-check-timeout >>s timeout)
+          command: |
+            echo "Waiting for << parameters.environment >> to be healthy..."
+            echo "Timeout: << parameters.health-check-timeout >> seconds"
+            echo ""
+            # Simulate health check
+            sleep 2
+            echo "Health check passed!"
+
+      # ════════════════════════════════════════════════════════════════════
+      # CONDITIONAL STEP - Only runs if notify-slack is true
+      # ════════════════════════════════════════════════════════════════════
       - when:
           condition: << parameters.notify-slack >>
           steps:
             - run:
                 name: Notify Slack
                 command: |
-                  echo "Sending Slack notification..."
-                  echo "Message: Deployed to << parameters.environment >>"
+                  echo "╔════════════════════════════════════════╗"
+                  echo "║     SLACK NOTIFICATION                 ║"
+                  echo "╠════════════════════════════════════════╣"
+                  echo "║  Sending deployment notification...    ║"
+                  echo "║  Environment: << parameters.environment >>"
+                  echo "║  Status: Success                       ║"
+                  echo "╚════════════════════════════════════════╝"
 
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
   build-test-deploy:
     jobs:
+      # Stage 1: Build
       - build
+
+      # Stage 2: Test
       - test:
           requires:
             - build
 
-      # Same job called THREE times with different parameters!
+      # ════════════════════════════════════════════════════════════════════
+      # Stage 3: Deploy to DEV
+      #
+      # Note the 'name' key - this creates a unique job instance.
+      # Without 'name', you'd get a conflict (can't have two 'deploy' jobs).
+      # ════════════════════════════════════════════════════════════════════
       - deploy:
-          name: deploy-dev
-          environment: dev
-          replicas: 1
-          notify-slack: false
+          name: deploy-dev           # Unique name for this instance
+          environment: dev           # Required parameter
+          replicas: 1                # Override default
+          notify-slack: false        # No notification for dev
           requires:
             - test
           filters:
             branches:
               only: develop
 
+      # ════════════════════════════════════════════════════════════════════
+      # Stage 4: Deploy to STAGING
+      # ════════════════════════════════════════════════════════════════════
       - deploy:
           name: deploy-staging
           environment: staging
-          replicas: 2
-          notify-slack: true
+          replicas: 2                # More replicas for staging
+          notify-slack: true         # Notify on staging deploys
+          health-check-timeout: 60   # Longer timeout for staging
           requires:
             - test
           filters:
             branches:
               only: main
 
+      # ════════════════════════════════════════════════════════════════════
+      # Stage 5: Deploy to PRODUCTION
+      #
+      # Note: Different resource group for production isolation
+      # ════════════════════════════════════════════════════════════════════
       - deploy:
           name: deploy-production
           environment: production
-          replicas: 3
-          notify-slack: true
-          resource-group: "globomantics-prod"
+          replicas: 3                # Maximum replicas for prod
+          notify-slack: true         # Always notify on prod
+          resource-group: "globomantics-prod"  # Different resource group!
+          health-check-timeout: 120  # Long timeout for prod
           requires:
-            - deploy-staging
+            - deploy-staging         # Must pass staging first!
           filters:
             branches:
               only: main
+
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. What's the difference between job parameters and pipeline parameters?
+#    Answer: Pipeline params are set at trigger time and affect the whole
+#    pipeline. Job params are set in the workflow and only affect that
+#    specific job invocation.
+#
+# 2. Why use 'name' when calling a parameterized job multiple times?
+#    Answer: Without 'name', CircleCI can't distinguish between instances.
+#    The name appears in the UI and in 'requires' references.
+#
+# 3. Can job parameters reference pipeline parameters?
+#    Answer: Yes! You can do: environment: << pipeline.parameters.env >>
+#
+# 4. What happens if you don't provide a required parameter?
+#    Answer: Config validation fails. CircleCI won't run the pipeline.
+#
+# PARAMETER COMPARISON:
+#   ┌────────────────────┬────────────────────┬─────────────────────────┐
+#   │ Feature            │ Pipeline Params    │ Job Params              │
+#   ├────────────────────┼────────────────────┼─────────────────────────┤
+#   │ Set when?          │ Trigger time       │ Workflow definition     │
+#   │ Scope              │ Entire pipeline    │ Single job invocation   │
+#   │ Access syntax      │ << pipeline.parameters.X >> │ << parameters.X >> │
+#   │ Can skip jobs?     │ Yes (with 'when')  │ No (job always exists)  │
+#   │ Set via API?       │ Yes                │ No                      │
+#   └────────────────────┴────────────────────┴─────────────────────────┘
+#
+# BEST PRACTICES:
+#   - Use required params for essential values (no default)
+#   - Use defaults for optional configuration
+#   - Give each job instance a meaningful 'name'
+#   - Use 'when' for conditional steps within jobs
+#   - Document parameters with 'description' field
+#
+# NEXT STEPS (Demo 3):
+#   - Commands for reusable step sequences
+#   - Executors for reusable execution environments
+# ============================================================================

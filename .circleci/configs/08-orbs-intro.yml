@@ -1,94 +1,285 @@
-# Module 3 - Introduction to Orbs
-# Demo: Clip 2 - Installing and Using Your First Orb
-# Replace manual setup with circleci/node orb
+# ============================================================================
+# MODULE 3, DEMO 1: Introduction to Orbs
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Understand what orbs are and how to use the official CircleCI Node.js orb
+#   to dramatically simplify your configuration while following best practices.
+#
+# KEY CONCEPTS:
+#   - Orbs are shareable, reusable configuration packages
+#   - They bundle executors, commands, and jobs together
+#   - Semantic versioning: major.minor.patch
+#   - Can use @volatile for always-latest (not recommended for production)
+#
+# WHAT ORBS PROVIDE:
+#   ┌────────────────────────────────────────────────────────────────────┐
+#   │  EXECUTORS         COMMANDS              JOBS                      │
+#   │  Pre-configured    Reusable step         Complete job              │
+#   │  environments      sequences             definitions               │
+#   │                                                                    │
+#   │  node/default      node/install-packages node/test                 │
+#   │  node/browsers     node/run              node/run                  │
+#   │  node/machine                                                      │
+#   └────────────────────────────────────────────────────────────────────┘
+#
+# BEFORE vs AFTER:
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  BEFORE (Manual Node.js Setup): ~20 lines per job                   │
+#   │                                                                      │
+#   │  jobs:                                                               │
+#   │    build:                                                            │
+#   │      docker:                                                         │
+#   │        - image: cimg/node:20.0                                       │
+#   │      steps:                                                          │
+#   │        - checkout                                                    │
+#   │        - restore_cache:                                              │
+#   │            keys:                                                     │
+#   │              - node-deps-v1-{{ checksum "package-lock.json" }}       │
+#   │              - node-deps-v1-                                         │
+#   │        - run: npm ci                                                 │
+#   │        - save_cache:                                                 │
+#   │            key: node-deps-v1-{{ checksum "package-lock.json" }}      │
+#   │            paths:                                                    │
+#   │              - ./node_modules                                        │
+#   │        - run: npm run build                                          │
+#   └─────────────────────────────────────────────────────────────────────┘
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  AFTER (Using Node Orb): ~8 lines per job                            │
+#   │                                                                      │
+#   │  jobs:                                                               │
+#   │    build:                                                            │
+#   │      executor: node/default                                          │
+#   │      steps:                                                          │
+#   │        - checkout                                                    │
+#   │        - node/install-packages                                       │
+#   │        - run: npm run build                                          │
+#   │                                                                      │
+#   │  60% REDUCTION in configuration!                                     │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Orb commands expand to show their internal steps
+#   2. Caching "just works" without any configuration
+#   3. Orb version is displayed in job details
+#   4. Click "Configuration" tab to see resolved config
+#
+# ============================================================================
 
 version: 2.1
 
-# ============================================
-# ORBS - Shareable Configuration Packages
-# Version pinning: major.minor.patch
-# ============================================
+# ============================================================================
+# ORBS - Import Shareable Configuration Packages
+#
+# Format: <alias>: <namespace>/<orb-name>@<version>
+#
+# Version strategies:
+#   @5.2.0   - Exact version (recommended for production)
+#   @5.2     - Latest patch version of 5.2.x
+#   @5       - Latest minor.patch of 5.x.x
+#   @volatile - Always latest (NOT recommended)
+# ============================================================================
 orbs:
   # CircleCI's official Node.js orb
-  # Includes: executors, commands, jobs for Node.js projects
+  # https://circleci.com/developer/orbs/orb/circleci/node
   node: circleci/node@5.2.0
 
-# ============================================
-# BEFORE: Manual Node.js setup (15+ lines per job)
-# ============================================
-# jobs:
-#   build-manual:
-#     docker:
-#       - image: cimg/node:20.0
-#     steps:
-#       - checkout
-#       - restore_cache:
-#           keys:
-#             - node-deps-{{ checksum "package-lock.json" }}
-#       - run: npm ci
-#       - save_cache:
-#           key: node-deps-{{ checksum "package-lock.json" }}
-#           paths:
-#             - node_modules
-#       - run: npm run build
-
-# ============================================
-# AFTER: Using node orb (5 lines!)
-# ============================================
+# ============================================================================
+# JOBS - Using Orb Components
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Using orb executor and commands
+  # --------------------------------------------------------------------------
   build:
-    # Use the orb's executor instead of defining our own
+    # ════════════════════════════════════════════════════════════════════
+    # ORB EXECUTOR
+    # Instead of defining docker image, use the orb's pre-configured executor
+    # The 'tag' parameter specifies Node.js version
+    # ════════════════════════════════════════════════════════════════════
     executor:
       name: node/default
       tag: "20"
+
     steps:
       - checkout
-      # Orb command: handles restore_cache, npm ci, save_cache automatically!
+
+      # ════════════════════════════════════════════════════════════════════
+      # ORB COMMAND: node/install-packages
+      #
+      # This single command does ALL of this:
+      #   1. Detects package manager (npm, yarn, pnpm)
+      #   2. Generates cache key from lockfile
+      #   3. Restores cached node_modules if available
+      #   4. Runs npm ci (or yarn/pnpm equivalent)
+      #   5. Saves node_modules to cache
+      #
+      # All with automatic cache invalidation when lockfile changes!
+      # ════════════════════════════════════════════════════════════════════
       - node/install-packages:
           pkg-manager: npm
-      - run: npm run build
-      - run: npm run lint
+          # Optional: Use lockfile for cache key (default: true)
+          # cache-only-lockfile: true
 
+      - run:
+          name: Build application
+          command: npm run build
+
+      - run:
+          name: Lint code
+          command: npm run lint
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
+
+  # --------------------------------------------------------------------------
+  # TEST JOB - Also using orb components
+  # --------------------------------------------------------------------------
   test:
     executor:
       name: node/default
       tag: "20"
+
     steps:
       - checkout
+
+      # Simpler invocation - uses defaults
       - node/install-packages
-      - run: npm test
+
+      - run:
+          name: Run tests
+          command: npm test
+
       - store_test_results:
           path: test-results
 
-  # You can also use orb JOBS directly in workflows
-  # The node orb provides a 'node/test' job we could use
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
 
+  # --------------------------------------------------------------------------
+  # DEPLOY JOB - Standard job, doesn't need Node orb
+  # --------------------------------------------------------------------------
+  deploy:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Production
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING GLOBOMANTICS ROBOT FLEET API         ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Built with CircleCI Node Orb                      ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}                        ║"
+            echo "╚════════════════════════════════════════════════════╝"
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
-  build-and-test:
+  build-test-deploy:
     jobs:
+      # Our custom build job using orb commands
       - build
 
-      # Option 1: Our custom test job using orb commands
+      # Our custom test job using orb commands
       - test:
           requires:
             - build
 
-      # Option 2: Use the orb's built-in test job (commented out)
+      # ════════════════════════════════════════════════════════════════════
+      # ALTERNATIVE: Use orb's built-in job
+      #
+      # The node orb provides a complete 'node/test' job that:
+      #   - Sets up Node.js environment
+      #   - Installs packages
+      #   - Runs npm test
+      #   - Stores test results
+      #
+      # Uncomment to use instead of our custom test job:
+      # ════════════════════════════════════════════════════════════════════
       # - node/test:
+      #     name: orb-test  # Give it a unique name
       #     pkg-manager: npm
+      #     version: "20"
       #     requires:
       #       - build
 
-# ============================================
-# ORBS PROVIDE:
-# - Executors: Pre-configured Docker images
-# - Commands: Reusable step sequences
-# - Jobs: Complete job definitions
+      - deploy:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# EXPLORING ORBS
+# ============================================================================
 #
-# BENEFITS:
-# - Less YAML to write and maintain
-# - Best practices built-in (caching, etc.)
-# - Versioned and tested by CircleCI/vendors
-# ============================================
+# HOW TO FIND ORBS:
+#   CircleCI Orb Registry: https://circleci.com/developer/orbs
+#
+# POPULAR ORBS:
+#   ┌────────────────────────┬───────────────────────────────────────────┐
+#   │ Orb                    │ Purpose                                   │
+#   ├────────────────────────┼───────────────────────────────────────────┤
+#   │ circleci/node          │ Node.js projects                          │
+#   │ circleci/python        │ Python projects                           │
+#   │ circleci/go            │ Go projects                               │
+#   │ circleci/rust          │ Rust projects                             │
+#   │ circleci/docker        │ Docker build & push                       │
+#   │ circleci/aws-cli       │ AWS deployments                           │
+#   │ circleci/azure-cli     │ Azure deployments                         │
+#   │ circleci/gcp-cli       │ Google Cloud deployments                  │
+#   │ circleci/slack         │ Slack notifications                       │
+#   │ circleci/jira          │ Jira integration                          │
+#   └────────────────────────┴───────────────────────────────────────────┘
+#
+# ORB SOURCE CODE:
+#   View any orb's source: circleci orb source <namespace>/<orb>@<version>
+#   Example: circleci orb source circleci/node@5.2.0
+#
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. Why pin to a specific version instead of using @volatile?
+#    Answer: Builds should be reproducible. @volatile means a new orb
+#    version could break your builds without any code changes.
+#
+# 2. What's the difference between using an orb command vs orb job?
+#    Answer: Commands give you more control (add your own steps).
+#    Jobs are ready-to-use but less flexible.
+#
+# 3. Can you modify an orb's behavior?
+#    Answer: Yes! Use orb parameters. Each command/job has parameters
+#    you can set to customize behavior.
+#
+# 4. How do you know what parameters an orb supports?
+#    Answer: Check the orb registry page or run:
+#    circleci orb info circleci/node@5.2.0
+#
+# BEST PRACTICES:
+#   - Always pin orb versions in production
+#   - Use orb commands for flexibility, orb jobs for simplicity
+#   - Check orb documentation for all available parameters
+#   - Keep orbs updated (security patches)
+#   - Prefer official CircleCI orbs when available
+#
+# ORB SECURITY:
+#   - Only use orbs from trusted namespaces
+#   - Review orb source code before using
+#   - Consider certified orbs (verified by CircleCI)
+#
+# NEXT STEPS (Demo 2):
+#   - Slack notifications orb
+#   - Sending deployment notifications
+# ============================================================================
