@@ -113,6 +113,9 @@ Refactor a pipeline with 5 nearly-identical deploy jobs into:
 - Reusable commands for common steps
 - Pipeline parameters for environment selection
 
+**Challenge:** `demos/challenges/MODULE2-CHALLENGE.md`
+**Solution:** `demos/module2-configuration-reuse/configs/module2-challenge-solution.yml`
+
 ### Module 3 Challenge
 
 Integrate the following orbs:
@@ -122,3 +125,6 @@ Integrate the following orbs:
 - `circleci/azure-cli` for cloud deployment
 
 Compare line count and maintainability with manual implementation.
+
+**Challenge:** `demos/challenges/MODULE3-CHALLENGE.md`
+**Solution:** `demos/module3-orbs-azure/configs/module3-challenge-solution.yml`

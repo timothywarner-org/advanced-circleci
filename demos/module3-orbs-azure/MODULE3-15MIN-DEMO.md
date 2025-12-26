@@ -16,6 +16,18 @@
 
 ## Demo Flow (15 Minutes)
 
+### Timing Breakdown
+
+| Segment | Duration | Wall Clock | Key Actions |
+|---------|----------|------------|-------------|
+| Curiosity Hook | 1:00 | 0:00-1:00 | Show verbose manual config |
+| Node Orb Quick Win | 4:00 | 1:00-5:00 | Add orb, replace npm/cache steps, run pipeline |
+| Slack Orb Signal | 3:00 | 5:00-8:00 | Add notifications, show Slack message |
+| Azure Orb + OIDC | 5:00 | 8:00-13:00 | OIDC login, deploy to Container Apps |
+| Wrap and Capstone | 2:00 | 13:00-15:00 | Recap, point to capstone |
+
+**Buffer:** Docker build ~60-90s (use DLC), Azure deploy ~30s
+
 ### 1) Curiosity Hook (1 min)
 
 - Show a verbose handwritten job that installs Node, posts Slack, and runs Azure CLI manually. Ask: "What if we could import this expertise instead of retyping it every sprint?"

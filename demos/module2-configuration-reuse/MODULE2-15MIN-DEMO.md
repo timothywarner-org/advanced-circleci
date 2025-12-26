@@ -16,6 +16,18 @@
 
 ## Demo Flow (15 Minutes)
 
+### Timing Breakdown
+
+| Segment | Duration | Wall Clock | Key Actions |
+|---------|----------|------------|-------------|
+| Curiosity Hook | 1:00 | 0:00-1:00 | Show duplicate jobs, identify opportunity |
+| Pipeline Parameters | 4:00 | 1:00-5:00 | Add params, trigger via UI, show skip_tests |
+| Job Parameters | 6:00 | 5:00-11:00 | Refactor 5 jobs → 1, compare line counts |
+| Params vs Env Vars | 3:00 | 11:00-14:00 | Demo `when` clause difference |
+| Wrap and Challenge | 1:00 | 14:00-15:00 | Recap, assign challenge |
+
+**Buffer:** API trigger ~5s, config validation ~2s
+
 ### 1) Curiosity Hook (1 min)
 
 - Show two similar deploy jobs in the existing config. Ask: "Why are we copying YAML instead of teaching CircleCI to accept inputs?"

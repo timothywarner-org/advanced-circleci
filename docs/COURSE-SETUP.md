@@ -129,7 +129,75 @@ Before each recording session:
 6. Verify Slack webhook is working
 7. Check Azure resources are deployed
 
+## Branch Strategy for Demos
+
+### Recommended Branches
+
+Use these branches during demos to demonstrate different workflow behaviors:
+
+| Branch | Purpose | Triggers |
+|--------|---------|----------|
+| `main` | Production deployments | Full pipeline with approval gates |
+| `develop` | Integration testing | Deploy to dev/staging without approval |
+| `feature/*` | Feature development | Build and test only, deploy to dev |
+| `demo/*` | Recording sessions | Temporary branches for demos |
+
+### Demo Session Workflow
+
+```bash
+# Before each demo session
+git checkout main
+git pull origin main
+git checkout -b demo/module1-$(date +%Y%m%d)
+
+# Make changes during demo...
+git add .
+git commit -m "Demo: sequential workflow"
+git push -u origin demo/module1-$(date +%Y%m%d)
+
+# After demo session - clean up
+git checkout main
+git branch -D demo/module1-$(date +%Y%m%d)
+git push origin --delete demo/module1-$(date +%Y%m%d)
+```
+
+### Branch Filter Examples
+
+The following filters are used in the production config:
+
+```yaml
+# Only main branch (production deploys)
+filters:
+  branches:
+    only: main
+
+# Develop and feature branches (dev deploys)
+filters:
+  branches:
+    only:
+      - develop
+      - /feature\/.*/
+
+# Tags only (releases)
+filters:
+  tags:
+    only: /^v.*/
+  branches:
+    ignore: /.*/
+```
+
+### Tips for Recording
+
+1. **Create demo branches before recording** - Avoids pushing to main accidentally
+2. **Use descriptive branch names** - `feature/add-robot-endpoint` shows filter matching
+3. **Pre-push test branches** - Have `feature/test-filters` ready to show branch filtering
+4. **Clean up after** - Delete demo branches to keep repo clean
+
+---
+
 ## Troubleshooting
+
+See [TROUBLESHOOTING-DEMOS.md](./TROUBLESHOOTING-DEMOS.md) for detailed troubleshooting during demos.
 
 ### CircleCI Pipeline Not Triggering
 
