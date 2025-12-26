@@ -1,54 +1,163 @@
-# Module 1 - Starting Point: Sequential Pipeline
-# This is the "before" state - inefficient sequential execution
-# Demo: Clip 2 - Building Sequential Dependencies with requires
+# ============================================================================
+# MODULE 1, DEMO 1: Sequential Workflow Baseline
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Define sequential workflows using the `requires` keyword to create
+#   job dependencies that execute in a specific order.
+#
+# KEY CONCEPTS:
+#   - Jobs execute in PARALLEL by default (important!)
+#   - Use `requires:` to create dependencies between jobs
+#   - Dependencies form a directed acyclic graph (DAG)
+#   - Each job runs in a fresh container
+#
+# WORKFLOW DIAGRAM:
+#
+#   build ──────► test ──────► deploy
+#     │            │             │
+#     ▼            ▼             ▼
+#   ~2 min       ~3 min        ~1 min
+#
+#   Total time: ~6 minutes (sequential)
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Jobs appear connected by arrows showing dependencies
+#   2. "test" waits for "build" to complete before starting
+#   3. "deploy" waits for "test" to complete
+#   4. Timeline view shows sequential execution
+#
+# ANTI-PATTERN WARNING:
+#   This config reinstalls dependencies in EVERY job - inefficient!
+#   We'll fix this in Demo 2 with workspaces.
+#
+# ============================================================================
 
 version: 2.1
 
+# ============================================================================
+# JOBS - Define individual units of work
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB
+  # Purpose: Install dependencies, compile code, run linting
+  # --------------------------------------------------------------------------
   build:
     docker:
-      - image: cimg/node:20.0
+      - image: cimg/node:20.0    # CircleCI convenience image with Node.js
+    working_directory: ~/project
     steps:
-      - checkout
+      - checkout                  # Clone the repository
+
       - run:
           name: Install dependencies
-          command: npm ci
+          command: npm ci         # Clean install (uses package-lock.json)
+
       - run:
           name: Build application
           command: npm run build
+
       - run:
           name: Lint code
           command: npm run lint
 
+  # --------------------------------------------------------------------------
+  # TEST JOB
+  # Purpose: Run the test suite
+  # Note: Must reinstall deps (each job is a fresh container)
+  # --------------------------------------------------------------------------
   test:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
+
       - run:
           name: Install dependencies
-          command: npm ci
+          command: npm ci         # Redundant! We'll fix this later
+
       - run:
           name: Run all tests
           command: npm test
 
+      # Store test results for CircleCI's Test Insights
+      - store_test_results:
+          path: test-results
+
+      # Store coverage as downloadable artifact
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
+
+  # --------------------------------------------------------------------------
+  # DEPLOY JOB
+  # Purpose: Deploy the application (simulated for demo)
+  # Note: In production, this would push to a real environment
+  # --------------------------------------------------------------------------
   deploy:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run:
-          name: Deploy application
-          command: echo "Deploying to production..."
 
+      - run:
+          name: Simulate deployment
+          command: |
+            echo "╔════════════════════════════════════════╗"
+            echo "║     DEPLOYING ROBOT FLEET API          ║"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Environment: production               ║"
+            echo "║  Version: $(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | tr -d '", ')"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}            ║"
+            echo "╚════════════════════════════════════════╝"
+            echo ""
+            echo "Deployment successful! (simulated)"
+
+# ============================================================================
+# WORKFLOWS - Orchestrate job execution
+# ============================================================================
 workflows:
   version: 2
+
+  # --------------------------------------------------------------------------
+  # SEQUENTIAL WORKFLOW
+  # Jobs execute one after another, connected by `requires:`
+  # --------------------------------------------------------------------------
   build-test-deploy:
     jobs:
+      # Job 1: Build runs first (no dependencies)
       - build
+
+      # Job 2: Test waits for build to complete
       - test:
           requires:
-            - build
+            - build       # <-- This is the key! Creates dependency
+
+      # Job 3: Deploy waits for test to complete
       - deploy:
           requires:
-            - test
+            - test        # <-- Chain continues
+
+# ============================================================================
+# DISCUSSION QUESTIONS FOR LEARNERS:
+#
+# 1. What happens if the "build" job fails?
+#    Answer: "test" and "deploy" never run (dependency chain breaks)
+#
+# 2. Why does each job need to run `npm ci`?
+#    Answer: Each job runs in a fresh container with no shared state
+#
+# 3. How would you run test and deploy in parallel?
+#    Answer: Both would list `build` in their requires (Demo 2)
+#
+# 4. What's the total pipeline time?
+#    Answer: Sum of all job times (sequential = slowest)
+#
+# NEXT STEPS (Demo 2):
+#   - Use persist_to_workspace to share node_modules
+#   - Fan-out pattern for parallel test execution
+#   - Reduce total pipeline time by 50%+
+# ============================================================================

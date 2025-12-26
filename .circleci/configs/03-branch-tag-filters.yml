@@ -1,76 +1,223 @@
-# Module 1 - Conditional Execution with Filters
-# Demo: Clip 4 - Conditional Execution with Branch and Tag Filters
-# Control WHICH commits trigger WHICH jobs
+# ============================================================================
+# MODULE 1, DEMO 3: Branch and Tag Filters
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Configure conditional job execution using branch and tag filters to
+#   control which commits trigger which jobs in your pipeline.
+#
+# KEY CONCEPTS:
+#   - filters.branches.only: Only run on specified branches
+#   - filters.branches.ignore: Run on all branches EXCEPT specified
+#   - filters.tags.only: Run only when tags match pattern
+#   - Regex patterns for flexible branch/tag matching
+#   - Tags require explicit branch ignore for tag-only workflows
+#
+# WORKFLOW DIAGRAM:
+#
+#   Feature Branch:     build ───► unit-tests ───► (stop)
+#                         │
+#   Develop Branch:     build ───► unit-tests ──┬─► integration ──► deploy-staging
+#                         │                     │
+#   Main Branch:        build ───► unit-tests ──┼─► integration ──► e2e ──► deploy-prod
+#                                               │
+#   Tag (v1.0.0):       release-build ──────────► (publish to registry)
+#
+# FILTER PATTERNS CHEATSHEET:
+#   - "main"             → Exact match for "main" branch
+#   - /feature\/.*/      → Any branch starting with "feature/"
+#   - /^v[0-9]+\.[0-9]+\.[0-9]+$/  → Semantic version tags (v1.2.3)
+#   - /pull\/.*/         → GitHub PR branches (pull/123)
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Push to feature/* → Only build and unit-tests run
+#   2. Push to develop → Adds integration tests and staging deploy
+#   3. Push to main → Full pipeline including production deploy
+#   4. Create v1.0.0 tag → Only release workflow runs
+#
+# ANTI-PATTERN WARNING:
+#   Don't use filters to skip tests on "urgent" branches!
+#   Tests exist to catch bugs before production.
+#
+# ============================================================================
 
 version: 2.1
 
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Runs on ALL branches (no filters needed here)
+  # --------------------------------------------------------------------------
   build:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run build
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
 
+  # --------------------------------------------------------------------------
+  # UNIT TESTS - Runs on all branches (fast feedback)
+  # --------------------------------------------------------------------------
   unit-tests:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run test:unit
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run unit tests
+          command: npm run test:unit
+      - store_test_results:
+          path: test-results
 
+  # --------------------------------------------------------------------------
+  # INTEGRATION TESTS - Only on develop and main (slower, more resources)
+  # --------------------------------------------------------------------------
   integration-tests:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run test:integration
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run integration tests
+          command: npm run test:integration
+      - store_test_results:
+          path: test-results
 
+  # --------------------------------------------------------------------------
+  # E2E TESTS - Only on main (most expensive, pre-production validation)
+  # --------------------------------------------------------------------------
   e2e-tests:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: npm ci
-      - run: npm run test:e2e
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run E2E tests
+          command: npm run test:e2e
+      - store_test_results:
+          path: test-results
 
+  # --------------------------------------------------------------------------
+  # DEPLOY STAGING - Only on develop branch
+  # --------------------------------------------------------------------------
   deploy-staging:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
-      - run: echo "Deploying to staging..."
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Staging
+          command: |
+            echo "╔════════════════════════════════════════╗"
+            echo "║     DEPLOYING TO STAGING               ║"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Branch: develop                       ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}            ║"
+            echo "╚════════════════════════════════════════╝"
 
+  # --------------------------------------------------------------------------
+  # DEPLOY PRODUCTION - Only on main branch
+  # --------------------------------------------------------------------------
   deploy-production:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
-      - run: echo "Deploying to production..."
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Production
+          command: |
+            echo "╔════════════════════════════════════════╗"
+            echo "║     DEPLOYING TO PRODUCTION            ║"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Globomantics Robot Fleet API          ║"
+            echo "║  Branch: main                          ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}            ║"
+            echo "╚════════════════════════════════════════╝"
 
+  # --------------------------------------------------------------------------
+  # RELEASE BUILD - Only triggered by semantic version tags
+  # --------------------------------------------------------------------------
   release-build:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run: echo "Building release package for tag ${CIRCLE_TAG}"
+      - run:
+          name: Build Release Package
+          command: |
+            echo "╔════════════════════════════════════════╗"
+            echo "║     RELEASE BUILD                      ║"
+            echo "╠════════════════════════════════════════╣"
+            echo "║  Tag: ${CIRCLE_TAG}                    ║"
+            echo "║  Building release package...           ║"
+            echo "╚════════════════════════════════════════╝"
+            npm ci
+            npm run build
+      - run:
+          name: Publish to Registry
+          command: |
+            echo "Publishing ${CIRCLE_TAG} to npm registry..."
+            # npm publish (would run in real scenario)
 
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
-  # Main workflow with branch filters
+  # --------------------------------------------------------------------------
+  # MAIN WORKFLOW - Different behavior based on branch
+  # --------------------------------------------------------------------------
   build-test-deploy:
     jobs:
-      # Build runs on all branches
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 1: Build runs on ALL branches
+      # No filters = runs everywhere
+      # ════════════════════════════════════════════════════════════════════
       - build
 
-      # Unit tests on all branches
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 2: Unit tests run on ALL branches (fast feedback loop)
+      # ════════════════════════════════════════════════════════════════════
       - unit-tests:
           requires:
             - build
 
-      # Integration tests ONLY on pull requests and main
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 3: Integration tests ONLY on develop, main, and PRs
+      # Uses regex pattern to match PR branches
+      # ════════════════════════════════════════════════════════════════════
       - integration-tests:
           requires:
             - build
@@ -79,9 +226,12 @@ workflows:
               only:
                 - main
                 - develop
-                - /pull\/.*/
+                - /pull\/.*/       # GitHub PR branches
 
-      # E2E tests ONLY on main and develop
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 4: E2E tests ONLY on main and develop
+      # Most expensive tests, only run before production
+      # ════════════════════════════════════════════════════════════════════
       - e2e-tests:
           requires:
             - build
@@ -91,7 +241,9 @@ workflows:
                 - main
                 - develop
 
-      # Staging deploy ONLY on develop branch
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 5: Staging deployment ONLY on develop branch
+      # ════════════════════════════════════════════════════════════════════
       - deploy-staging:
           requires:
             - unit-tests
@@ -100,7 +252,10 @@ workflows:
             branches:
               only: develop
 
-      # Production deploy ONLY on main branch
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 6: Production deployment ONLY on main branch
+      # Requires ALL tests to pass
+      # ════════════════════════════════════════════════════════════════════
       - deploy-production:
           requires:
             - unit-tests
@@ -110,14 +265,52 @@ workflows:
             branches:
               only: main
 
-  # Release workflow - triggered ONLY by tags
+  # --------------------------------------------------------------------------
+  # RELEASE WORKFLOW - Triggered ONLY by version tags
+  #
+  # IMPORTANT: For tag-triggered workflows, you MUST:
+  #   1. Set tags.only with your pattern
+  #   2. Set branches.ignore: /.*/ to prevent branch triggers
+  # --------------------------------------------------------------------------
   release:
     jobs:
       - release-build:
           filters:
-            # Only run on version tags (v1.0.0, v2.1.3, etc.)
+            # Only run on semantic version tags
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            # Ignore all branches (required for tag filtering)
+            # CRITICAL: Must ignore all branches for tag-only workflow!
             branches:
               ignore: /.*/
+
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. What happens when you push to a feature/new-robot branch?
+#    Answer: Only build and unit-tests run. Integration/E2E are skipped.
+#
+# 2. Why do we run all tests on 'develop' before staging?
+#    Answer: Staging should mirror production. All tests catch issues early.
+#
+# 3. Why use 'only' vs 'ignore' for branch filters?
+#    Answer: 'only' is safer - explicit allowlist. 'ignore' can accidentally
+#    run on new branches you didn't anticipate.
+#
+# 4. What's the regex pattern to match feature and hotfix branches?
+#    Answer: /(feature|hotfix)\/.*/
+#
+# BEST PRACTICES:
+#   - Use 'only' filters for critical jobs (production deploy)
+#   - Run fast tests on all branches for quick feedback
+#   - Reserve expensive tests for integration branches
+#   - Always test tag regex patterns before first release
+#
+# COMMON MISTAKES:
+#   - Forgetting 'branches: ignore: /.*/' in tag-only workflows
+#   - Using filters on the workflow level (filters go on jobs!)
+#   - Not escaping regex special characters (/ needs \/)
+#
+# NEXT STEPS (Demo 4):
+#   - Add manual approval gates for production
+#   - Configure scheduled workflows for nightly builds
+# ============================================================================

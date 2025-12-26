@@ -1,107 +1,284 @@
-# Module 1 - Fan-Out Pattern: Parallel Test Execution
-# Demo: Clip 3 - Fan-Out Parallelism for Maximum Speed
-# Shows dramatic time savings with parallel test jobs
+# ============================================================================
+# MODULE 1, DEMO 2: Fan-Out/Fan-In Pattern
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Configure parallel jobs using fan-out workflows to dramatically
+#   reduce pipeline execution time.
+#
+# KEY CONCEPTS:
+#   - Fan-out: Multiple jobs depending on the same upstream job
+#   - Fan-in: Single job depending on multiple upstream jobs
+#   - Workspaces: Share files between jobs (persist_to_workspace/attach_workspace)
+#   - Parallel execution reduces wall-clock time
+#
+# WORKFLOW DIAGRAM:
+#
+#                    ┌──── unit-tests ────┐
+#                    │       ~2 min       │
+#                    │                    │
+#   build ───────────┼── integration ─────┼──────► deploy
+#   ~2 min           │       ~3 min       │         ~1 min
+#                    │                    │
+#                    └──── security ──────┘
+#                            ~1 min
+#
+#   Total time: 2 + 3 + 1 = ~6 minutes (parallel tests!)
+#   vs. Sequential: 2 + 2 + 3 + 1 + 1 = ~9 minutes
+#   SAVINGS: 33% faster!
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Workflow graph shows diamond shape (fan-out then fan-in)
+#   2. Three test jobs run simultaneously
+#   3. Deploy waits for ALL test jobs to complete
+#   4. Timeline view shows parallel execution lanes
+#
+# ============================================================================
 
 version: 2.1
 
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Prepares workspace for downstream jobs
+  # --------------------------------------------------------------------------
   build:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
+
       - run:
           name: Install dependencies
           command: npm ci
+
       - run:
           name: Build application
           command: npm run build
-      - persist_to_workspace:
-          root: .
-          paths:
-            - node_modules
-            - dist
 
-  # These three jobs run IN PARALLEL after build
+      - run:
+          name: Lint code
+          command: npm run lint
+
+      # ════════════════════════════════════════════════════════════════════
+      # WORKSPACE: Share files with downstream jobs
+      # This is the KEY to efficient parallel pipelines!
+      # ════════════════════════════════════════════════════════════════════
+      - persist_to_workspace:
+          root: .                    # Start from current directory
+          paths:
+            - node_modules           # Cached dependencies
+            - dist                   # Build output
+            - public                 # Static assets
+            - package.json           # Needed for npm scripts
+            - package-lock.json
+
+  # --------------------------------------------------------------------------
+  # UNIT TESTS - Fast, isolated component tests
+  # Part of the fan-out pattern (runs in parallel with other tests)
+  # --------------------------------------------------------------------------
   unit-tests:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
+
+      # Restore workspace from build job (NO npm ci needed!)
       - attach_workspace:
           at: .
+
       - run:
           name: Run unit tests
           command: npm run test:unit
+
       - store_test_results:
           path: test-results
 
+      - store_artifacts:
+          path: coverage
+          destination: coverage-unit
+
+  # --------------------------------------------------------------------------
+  # INTEGRATION TESTS - API endpoint testing
+  # Part of the fan-out pattern (runs in parallel)
+  # --------------------------------------------------------------------------
   integration-tests:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
+
       - attach_workspace:
           at: .
+
       - run:
           name: Run integration tests
           command: npm run test:integration
+
       - store_test_results:
           path: test-results
 
+      - store_artifacts:
+          path: coverage
+          destination: coverage-integration
+
+  # --------------------------------------------------------------------------
+  # E2E TESTS - End-to-end workflow testing
+  # Part of the fan-out pattern (runs in parallel)
+  # --------------------------------------------------------------------------
+  e2e-tests:
+    docker:
+      - image: cimg/node:20.0
+    working_directory: ~/project
+    steps:
+      - checkout
+
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Run E2E tests
+          command: npm run test:e2e
+
+      - store_test_results:
+          path: test-results
+
+      - store_artifacts:
+          path: coverage
+          destination: coverage-e2e
+
+  # --------------------------------------------------------------------------
+  # SECURITY SCAN - Dependency vulnerability check
+  # Part of the fan-out pattern (runs in parallel)
+  # --------------------------------------------------------------------------
   security-scan:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
+
       - attach_workspace:
           at: .
+
       - run:
           name: Security audit
-          command: npm audit --audit-level=moderate || true
+          command: |
+            echo "╔════════════════════════════════════════╗"
+            echo "║     SECURITY VULNERABILITY SCAN        ║"
+            echo "╚════════════════════════════════════════╝"
+            npm audit --audit-level=moderate || true
 
-  # Fan-in: Deploy only after ALL parallel jobs complete
+      - run:
+          name: Check for outdated packages
+          command: npm outdated || true
+
+  # --------------------------------------------------------------------------
+  # DEPLOY JOB - Fan-in point (waits for all tests)
+  # --------------------------------------------------------------------------
   deploy:
     docker:
       - image: cimg/node:20.0
+    working_directory: ~/project
     steps:
       - checkout
-      - run:
-          name: Deploy application
-          command: echo "All tests passed! Deploying..."
 
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Deploy Robot Fleet API
+          command: |
+            echo "╔════════════════════════════════════════════════╗"
+            echo "║  ALL TESTS PASSED - DEPLOYING ROBOT FLEET API  ║"
+            echo "╠════════════════════════════════════════════════╣"
+            echo "║  Tests completed:                              ║"
+            echo "║    ✓ Unit tests                                ║"
+            echo "║    ✓ Integration tests                         ║"
+            echo "║    ✓ E2E tests                                 ║"
+            echo "║    ✓ Security scan                             ║"
+            echo "╚════════════════════════════════════════════════╝"
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
-  # Fan-out/Fan-in Pattern:
+  # --------------------------------------------------------------------------
+  # FAN-OUT/FAN-IN WORKFLOW
   #
-  #                 ┌─── unit-tests ───┐
-  #                 │                  │
-  #   build ────────┼─── integration ──┼───── deploy
-  #                 │                  │
-  #                 └─── security ─────┘
+  # Pattern visualization:
   #
-  # Time savings: 3 jobs × 5 min = 5 min (parallel)
-  #               vs. 15 min (sequential)
-
+  #              ┌─────────────────┐
+  #              │    unit-tests   │──┐
+  #              └─────────────────┘  │
+  #   ┌───────┐  ┌─────────────────┐  │  ┌─────────┐
+  #   │ build │──│ integration     │──┼──│ deploy  │
+  #   └───────┘  └─────────────────┘  │  └─────────┘
+  #              ┌─────────────────┐  │
+  #              │   e2e-tests     │──┤
+  #              └─────────────────┘  │
+  #              ┌─────────────────┐  │
+  #              │ security-scan   │──┘
+  #              └─────────────────┘
+  #
+  # --------------------------------------------------------------------------
   build-test-deploy:
     jobs:
+      # Stage 1: Build (single job)
       - build
 
-      # Fan-out: All require build, run in parallel
+      # Stage 2: Fan-out (4 jobs run in PARALLEL)
+      # All require build, so they all start when build completes
       - unit-tests:
           requires:
             - build
       - integration-tests:
           requires:
             - build
+      - e2e-tests:
+          requires:
+            - build
       - security-scan:
           requires:
             - build
 
-      # Fan-in: Requires ALL parallel jobs
+      # Stage 3: Fan-in (deploy waits for ALL parallel jobs)
+      # This is the "gate" - deploy only runs if everything passes
       - deploy:
           requires:
             - unit-tests
             - integration-tests
+            - e2e-tests
             - security-scan
+
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. What happens if integration-tests fails but unit-tests passes?
+#    Answer: Deploy never runs because it requires ALL jobs to pass
+#
+# 2. How much time did we save with parallel execution?
+#    Answer: Tests run in ~3 min (slowest) vs ~7 min (sequential sum)
+#
+# 3. Why use attach_workspace instead of npm ci in each job?
+#    Answer: Faster! No need to download and install packages again
+#
+# 4. Could we add more parallel test jobs?
+#    Answer: Yes! Any job requiring "build" joins the fan-out
+#
+# BEST PRACTICES:
+#   - Put the slowest parallel job in the critical path calculation
+#   - Use workspaces for large artifacts (node_modules)
+#   - Keep parallel jobs similar in duration for optimal resource use
+#
+# NEXT STEPS (Demo 3):
+#   - Add branch/tag filters for conditional execution
+#   - Deploy only from specific branches
+# ============================================================================
