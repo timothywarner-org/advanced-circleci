@@ -1,0 +1,49 @@
+{
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml",
+    "editor.autoIndent": "full",
+    "editor.tabSize": 2
+  },
+
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "yaml.schemas": {
+    "https://json.schemastore.org/circleciconfig.json": ".circleci/config.yml",
+    "https://json.schemastore.org/circleciconfig.json": ".circleci/configs/*.yml"
+  },
+
+  "circleci.validateOnSave": true,
+
+  "files.associations": {
+    "*.yml": "yaml",
+    "*.bicep": "bicep"
+  },
+
+  "eslint.validate": ["javascript"],
+
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/coverage": true,
+    "**/dist": true
+  },
+
+  "terminal.integrated.env.linux": {
+    "NODE_ENV": "development"
+  },
+
+  "terminal.integrated.env.osx": {
+    "NODE_ENV": "development"
+  }
+}

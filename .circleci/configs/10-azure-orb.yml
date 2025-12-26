@@ -1,0 +1,184 @@
+# Module 3 - Azure CLI Orb with OIDC Authentication
+# Demo: Clip 4 - Cloud Deployment Orbs — Azure Integration
+# Secure, passwordless Azure deployment using OIDC
+
+version: 2.1
+
+orbs:
+  node: circleci/node@5.2.0
+  slack: circleci/slack@4.13.3
+  # Azure CLI orb for cloud deployments
+  azure-cli: circleci/azure-cli@1.2.2
+
+# ============================================
+# EXECUTORS
+# ============================================
+executors:
+  azure-executor:
+    docker:
+      - image: cimg/base:current
+    environment:
+      # Azure configuration from environment
+      AZURE_RESOURCE_GROUP: globomantics-robots
+
+jobs:
+  build:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - run: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+
+  test:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - run: npm test
+
+  # Azure deployment job
+  deploy-azure:
+    parameters:
+      environment:
+        type: string
+        default: "dev"
+    executor: azure-executor
+    steps:
+      - attach_workspace:
+          at: .
+
+      # Enable Docker for building images
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      # Install Azure CLI using the orb
+      - azure-cli/install
+
+      # OIDC login - NO PASSWORDS STORED!
+      # Uses federated credentials configured in Azure AD
+      - azure-cli/login-with-oidc
+
+      # Build and push Docker image
+      - run:
+          name: Build Docker image
+          command: |
+            docker build \
+              --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+              --build-arg COMMIT_SHA=${CIRCLE_SHA1} \
+              -t ${ACR_LOGIN_SERVER}/robot-api:${CIRCLE_SHA1} \
+              -t ${ACR_LOGIN_SERVER}/robot-api:latest .
+
+      - run:
+          name: Push to Azure Container Registry
+          command: |
+            # Login to ACR using Azure CLI
+            az acr login --name ${ACR_NAME}
+
+            # Push images
+            docker push ${ACR_LOGIN_SERVER}/robot-api:${CIRCLE_SHA1}
+            docker push ${ACR_LOGIN_SERVER}/robot-api:latest
+
+      - run:
+          name: Deploy to Azure Container Apps
+          command: |
+            echo "Deploying to << parameters.environment >> environment..."
+
+            az containerapp update \
+              --name robot-api-<< parameters.environment >> \
+              --resource-group ${AZURE_RESOURCE_GROUP} \
+              --image ${ACR_LOGIN_SERVER}/robot-api:${CIRCLE_SHA1}
+
+            # Get the app URL
+            APP_URL=$(az containerapp show \
+              --name robot-api-<< parameters.environment >> \
+              --resource-group ${AZURE_RESOURCE_GROUP} \
+              --query properties.configuration.ingress.fqdn -o tsv)
+
+            echo "Deployed to: https://${APP_URL}"
+
+      - run:
+          name: Verify deployment
+          command: |
+            APP_URL=$(az containerapp show \
+              --name robot-api-<< parameters.environment >> \
+              --resource-group ${AZURE_RESOURCE_GROUP} \
+              --query properties.configuration.ingress.fqdn -o tsv)
+
+            # Health check
+            curl -f https://${APP_URL}/api/health || exit 1
+            echo "Health check passed!"
+
+workflows:
+  version: 2
+
+  build-test-deploy:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+
+      - deploy-azure:
+          name: deploy-dev
+          environment: dev
+          context:
+            - azure-oidc
+            - slack-notifications
+          requires:
+            - test
+          filters:
+            branches:
+              only:
+                - develop
+                - /feature\/.*/
+
+      - deploy-azure:
+          name: deploy-staging
+          environment: staging
+          context:
+            - azure-oidc
+            - slack-notifications
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+
+      - hold-production:
+          type: approval
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+      - deploy-azure:
+          name: deploy-production
+          environment: production
+          context:
+            - azure-oidc-prod
+            - slack-notifications
+          requires:
+            - hold-production
+          filters:
+            branches:
+              only: main
+
+# ============================================
+# AZURE OIDC SETUP:
+# 1. Create Azure AD App Registration
+# 2. Add Federated Credential for CircleCI:
+#    - Issuer: https://oidc.circleci.com/org/<ORG_ID>
+#    - Subject: org/<ORG_ID>/project/<PROJECT_ID>/user/<USER_ID>
+# 3. Grant App Registration access to Azure resources
+# 4. In CircleCI Context 'azure-oidc', set:
+#    - AZURE_CLIENT_ID
+#    - AZURE_TENANT_ID
+#    - AZURE_SUBSCRIPTION_ID
+#    - ACR_NAME
+#    - ACR_LOGIN_SERVER
+# ============================================

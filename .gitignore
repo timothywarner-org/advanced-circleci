@@ -137,3 +137,20 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Project-specific
+test-results/
+junit.xml
+*.tar
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE additional
+.idea/
+*.swp
+*.swo
+*~

@@ -1,0 +1,371 @@
+# Globomantics Robot Fleet API - CircleCI Configuration
+# Course: CircleCI Advanced Configuration
+# This is the FINAL configuration combining all 3 modules:
+# - Module 1: Workflow Orchestration (fan-out/fan-in)
+# - Module 2: Configuration Reuse (parameters, commands)
+# - Module 3: Orbs Integration (node, slack, azure-cli)
+
+version: 2.1
+
+# ============================================
+# ORBS - Reusable Configuration Packages
+# ============================================
+orbs:
+  node: circleci/node@5.2.0
+  slack: circleci/slack@4.13.3
+  azure-cli: circleci/azure-cli@1.2.2
+
+# ============================================
+# PIPELINE PARAMETERS - Workflow Control
+# ============================================
+parameters:
+  skip-tests:
+    type: boolean
+    default: false
+    description: "Skip test jobs for quick builds"
+  deploy-environment:
+    type: enum
+    enum: ["dev", "staging", "production"]
+    default: "dev"
+    description: "Target deployment environment"
+  node-version:
+    type: string
+    default: "20"
+    description: "Node.js version for builds"
+
+# ============================================
+# COMMANDS - Reusable Step Sequences
+# ============================================
+commands:
+  setup-node-env:
+    description: "Set up Node.js environment with caching"
+    parameters:
+      version:
+        type: string
+        default: "20"
+    steps:
+      - checkout
+      - node/install:
+          node-version: << parameters.version >>
+      - node/install-packages:
+          pkg-manager: npm
+          cache-path: ./node_modules
+
+  run-tests:
+    description: "Execute test suite with coverage"
+    parameters:
+      test-type:
+        type: string
+        default: "unit"
+    steps:
+      - run:
+          name: Run << parameters.test-type >> tests
+          command: npm run test:<< parameters.test-type >>
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-<< parameters.test-type >>
+
+  deploy-azure:
+    description: "Deploy to Azure Container Apps"
+    parameters:
+      resource-group:
+        type: string
+      app-name:
+        type: string
+      environment:
+        type: string
+    steps:
+      - run:
+          name: Build Docker image
+          command: |
+            docker build \
+              --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+              --build-arg COMMIT_SHA=${CIRCLE_SHA1} \
+              -t $ACR_LOGIN_SERVER/<< parameters.app-name >>:${CIRCLE_SHA1} \
+              -t $ACR_LOGIN_SERVER/<< parameters.app-name >>:latest .
+      - run:
+          name: Push to Azure Container Registry
+          command: |
+            echo $ACR_PASSWORD | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
+            docker push $ACR_LOGIN_SERVER/<< parameters.app-name >>:${CIRCLE_SHA1}
+            docker push $ACR_LOGIN_SERVER/<< parameters.app-name >>:latest
+      - run:
+          name: Deploy to Container Apps
+          command: |
+            az containerapp update \
+              --name << parameters.app-name >>-<< parameters.environment >> \
+              --resource-group << parameters.resource-group >> \
+              --image $ACR_LOGIN_SERVER/<< parameters.app-name >>:${CIRCLE_SHA1}
+
+  notify-slack:
+    description: "Send Slack notification"
+    parameters:
+      status:
+        type: string
+      environment:
+        type: string
+    steps:
+      - slack/notify:
+          channel: deployments
+          event: << parameters.status >>
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Globomantics Robot API - << parameters.environment >>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Status:* << parameters.status >>" },
+                    { "type": "mrkdwn", "text": "*Branch:* ${CIRCLE_BRANCH}" },
+                    { "type": "mrkdwn", "text": "*Commit:* ${CIRCLE_SHA1:0:7}" }
+                  ]
+                }
+              ]
+            }
+
+# ============================================
+# EXECUTORS - Reusable Execution Environments
+# ============================================
+executors:
+  node-executor:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+    working_directory: ~/project
+    environment:
+      NODE_ENV: test
+
+  docker-executor:
+    docker:
+      - image: cimg/base:current
+    working_directory: ~/project
+
+# ============================================
+# JOBS - Individual Build Steps
+# ============================================
+jobs:
+  # Build job - compiles and packages the application
+  build:
+    executor: node-executor
+    steps:
+      - setup-node-env:
+          version: << pipeline.parameters.node-version >>
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist
+            - node_modules
+            - package.json
+            - Dockerfile
+
+  # Unit tests - isolated component testing
+  unit-tests:
+    executor: node-executor
+    steps:
+      - setup-node-env
+      - run-tests:
+          test-type: unit
+
+  # Integration tests - API endpoint testing
+  integration-tests:
+    executor: node-executor
+    steps:
+      - setup-node-env
+      - run-tests:
+          test-type: integration
+
+  # E2E tests - complete workflow testing
+  e2e-tests:
+    executor: node-executor
+    steps:
+      - setup-node-env
+      - run-tests:
+          test-type: e2e
+
+  # Security scan - dependency vulnerability check
+  security-scan:
+    executor: node-executor
+    steps:
+      - setup-node-env
+      - run:
+          name: Security audit
+          command: npm run security
+      - run:
+          name: Check for known vulnerabilities
+          command: |
+            echo "Running security scan..."
+            npm audit --audit-level=moderate || true
+
+  # Parameterized deploy job - reused for all environments
+  deploy:
+    parameters:
+      environment:
+        type: string
+      resource-group:
+        type: string
+        default: "globomantics-robots"
+      requires-approval:
+        type: boolean
+        default: false
+    executor: docker-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - azure-cli/install
+      - azure-cli/login-with-oidc
+      - deploy-azure:
+          resource-group: << parameters.resource-group >>
+          app-name: robot-api
+          environment: << parameters.environment >>
+      - notify-slack:
+          status: pass
+          environment: << parameters.environment >>
+
+# ============================================
+# WORKFLOWS - Orchestrated Job Execution
+# ============================================
+workflows:
+  version: 2
+
+  # Main CI/CD workflow with fan-out/fan-in pattern
+  build-test-deploy:
+    jobs:
+      # Stage 1: Build (single job)
+      - build:
+          filters:
+            branches:
+              ignore: /docs\/.*/
+
+      # Stage 2: Test (fan-out - parallel execution)
+      - unit-tests:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /docs\/.*/
+      - integration-tests:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /docs\/.*/
+      - e2e-tests:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /docs\/.*/
+      - security-scan:
+          requires:
+            - build
+
+      # Stage 3: Deploy to Dev (fan-in - after all tests pass)
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          requires:
+            - unit-tests
+            - integration-tests
+            - e2e-tests
+            - security-scan
+          filters:
+            branches:
+              only:
+                - develop
+                - /feature\/.*/
+
+      # Stage 4: Deploy to Staging (main branch only)
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          requires:
+            - unit-tests
+            - integration-tests
+            - e2e-tests
+            - security-scan
+          filters:
+            branches:
+              only: main
+
+      # Stage 5: Manual approval for Production
+      - hold-production:
+          type: approval
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+      # Stage 6: Deploy to Production (after approval)
+      - deploy:
+          name: deploy-production
+          environment: production
+          requires-approval: true
+          requires:
+            - hold-production
+          filters:
+            branches:
+              only: main
+
+  # Scheduled nightly build workflow
+  nightly-build:
+    triggers:
+      - schedule:
+          cron: "0 2 * * *"
+          filters:
+            branches:
+              only: main
+    jobs:
+      - build
+      - unit-tests:
+          requires:
+            - build
+      - integration-tests:
+          requires:
+            - build
+      - security-scan:
+          requires:
+            - build
+
+  # Tag-triggered release workflow
+  release:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            branches:
+              ignore: /.*/
+      - unit-tests:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            branches:
+              ignore: /.*/
+      - deploy:
+          name: release-production
+          environment: production
+          requires:
+            - unit-tests
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            branches:
+              ignore: /.*/
