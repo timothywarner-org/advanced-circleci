@@ -1,14 +1,17 @@
 # Demo 1: Installing and Using Your First Orb
+
 ## Module 3, Clip 2 (5 minutes)
 
 ### Overview
+
 Add the circleci/node orb to replace manual npm install and caching steps. Show the dramatic reduction in config complexity.
 
 ---
 
 ## Pre-Demo Setup
+
 1. VS Code with CircleCI extension
-2. CircleCI Orb Registry open: https://circleci.com/developer/orbs
+2. CircleCI Orb Registry open: <https://circleci.com/developer/orbs>
 3. Before/after configs ready
 
 ---
@@ -17,9 +20,10 @@ Add the circleci/node orb to replace manual npm install and caching steps. Show 
 
 ### 1. Tour the Orb Registry (1 minute)
 
-**ACTION:** Open https://circleci.com/developer/orbs
+**ACTION:** Open <https://circleci.com/developer/orbs>
 
 **SHOW:**
+
 - Search for "node"
 - Categories: Certified, Partner, Community
 - Click circleci/node orb
@@ -98,6 +102,7 @@ jobs:
 **ACTION:** Push and show CircleCI dashboard
 
 **SHOW:**
+
 - Expand the "install-packages" step
 - Point out: restore_cache, npm ci, save_cache all happening
 - "Best practices built in, not written by hand"
@@ -137,6 +142,7 @@ jobs:
 ---
 
 ## Key Takeaways
+
 - Orbs are declared in the `orbs:` block
 - Use `namespace/name@version` format
 - Orbs provide executors, commands, and jobs
@@ -146,4 +152,5 @@ jobs:
 ---
 
 ## Transition
+
 "The node orb simplified our build. Now let's add Slack notifications—this is where orbs really shine for integrations."

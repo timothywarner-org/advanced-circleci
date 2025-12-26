@@ -1,12 +1,15 @@
 # Demo 3: Conditional Execution with Branch and Tag Filters
+
 ## Module 1, Clip 4 (5 minutes)
 
 ### Overview
+
 Control which commits trigger which jobs using the `filters` key. Build real-world scenarios for branch and tag-based deployments.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Create test branches: `feature/demo`, `develop`, `main`
 2. Have a version tag ready to push (v1.0.0)
 3. CircleCI dashboard open
@@ -81,6 +84,7 @@ git push -u origin feature/test-filters
 ```
 
 **SHOW in CircleCI:**
+
 - build runs ✓
 - unit-tests runs ✓
 - integration-tests SKIPPED
@@ -114,6 +118,7 @@ git push origin v1.0.0
 ```
 
 **SHOW in CircleCI:**
+
 - New pipeline appears
 - release-build job runs
 - Only tag-filtered workflow executed
@@ -144,6 +149,7 @@ filters:
 ---
 
 ## Key Takeaways
+
 - `filters.branches.only` restricts jobs to specific branches
 - `filters.branches.ignore` excludes branches
 - Regex patterns enable flexible matching
@@ -153,4 +159,5 @@ filters:
 ---
 
 ## Transition
+
 "We've covered the three core workflow patterns. Let's look at two advanced patterns: approval gates and scheduled workflows."

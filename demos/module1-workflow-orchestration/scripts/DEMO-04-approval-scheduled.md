@@ -1,12 +1,15 @@
 # Demo 4: Approval Gates and Scheduled Workflows
+
 ## Module 1, Clip 5 (5 minutes)
 
 ### Overview
+
 Implement manual approval gates for production deployments and scheduled workflows for nightly builds and dependency checks.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Have deploy-staging job configured
 2. CircleCI dashboard open
 3. Be prepared to click "Approve" in UI
@@ -62,6 +65,7 @@ workflows:
 **ACTION:** Push code and show dashboard
 
 **SHOW:**
+
 - Workflow pauses at "hold-for-approval"
 - Button appears: "Approve"
 - Click approve → deploy-production starts
@@ -132,6 +136,7 @@ Examples:
 ---
 
 ## Key Takeaways
+
 - `type: approval` creates manual gates in workflows
 - Great for production releases requiring sign-off
 - Scheduled triggers use cron syntax
@@ -141,4 +146,5 @@ Examples:
 ---
 
 ## Module 1 Summary Transition
+
 "We've covered all the workflow patterns Globomantics needs: sequential dependencies, parallel fan-out, conditional filters, approval gates, and scheduled builds. Now let's tackle the configuration sprawl problem with parameters and commands."

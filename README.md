@@ -3,6 +3,7 @@
 This repository contains course materials and reference assets for **CircleCI Advanced Configuration**, a 90-minute intermediate course by Tim Warner. It focuses on orchestrating complex multi-stage workflows, promoting configuration reuse through parameters and commands, and integrating certified CircleCI orbs to deliver reliable CI/CD pipelines at scale. The scenarios build on Globomantics robotics applications to demonstrate real-world patterns for sequencing jobs, fanning out and in, and deploying to cloud services.
 
 ## Topics
+
 - CircleCI advanced pipelines
 - Workflow orchestration (fan-out/fan-in, sequential dependencies, approvals)
 - Pipeline parameters, commands, executors, and configuration reuse
@@ -11,15 +12,18 @@ This repository contains course materials and reference assets for **CircleCI Ad
 - Globomantics sample applications and deployment patterns
 
 ## Getting Started
+
 Review the course outline in `COURSE_OUTLINE.md` for an overview of learning objectives, demo scenarios, and module structure. Additional resources are available in `RESOURCES.md`.
 
 ## Maintainer and Contact
+
 - **Maintainer:** Tim Warner (timothywarner on GitHub)
-- **Email:** tim@techtrainertim.com
-- **Website:** https://TechTrainerTim.com
+- **Email:** <tim@techtrainertim.com>
+- **Website:** <https://TechTrainerTim.com>
 
 For contribution guidelines, security policies, and support details, see the repository meta documents in this directory.
-# CircleCI Advanced Configuration
+
+## Course Badge
 
 > Pluralsight Course Repository: Globomantics Robot Fleet API
 
@@ -56,7 +60,7 @@ npm test
 
 ## Project Structure
 
-```
+```text
 advanced-circleci/
 ├── .circleci/
 │   ├── config.yml              # Production CircleCI config
@@ -117,20 +121,23 @@ curl -X POST http://localhost:3000/api/robots \
 The `.circleci/configs/` directory contains configurations that build on each other:
 
 ### Module 1: Workflow Orchestration
+
 1. `01-sequential-baseline.yml` - Basic sequential workflow
 2. `02-parallel-fanout.yml` - Fan-out/fan-in pattern
 3. `03-branch-tag-filters.yml` - Conditional execution
 4. `04-approval-scheduled.yml` - Manual gates and schedules
 
 ### Module 2: Configuration Reuse
-5. `05-pipeline-parameters.yml` - Workflow control
-6. `06-job-parameters.yml` - Reusable job definitions
-7. `07-commands-reuse.yml` - Step abstractions
+
+1. `05-pipeline-parameters.yml` - Workflow control
+2. `06-job-parameters.yml` - Reusable job definitions
+3. `07-commands-reuse.yml` - Step abstractions
 
 ### Module 3: Orbs & Integrations
-8. `08-orbs-intro.yml` - Node.js orb basics
-9. `09-slack-orb.yml` - Notifications
-10. `10-azure-orb.yml` - Cloud deployment
+
+1. `08-orbs-intro.yml` - Node.js orb basics
+2. `09-slack-orb.yml` - Notifications
+3. `10-azure-orb.yml` - Cloud deployment
 
 ## Demo Scripts
 
@@ -150,15 +157,18 @@ demos/module1-workflow-orchestration/scripts/
 The `infra/` directory contains Bicep templates for Azure Container Apps:
 
 ```bash
-# Deploy to dev environment
+# Deploy to staging (default)
 cd infra
-./deploy.sh dev
+./deploy.sh # or ./deploy.sh staging
 
 # Deploy to production
 ./deploy.sh production
 ```
 
+For a walkthrough of what each Bicep module does and the parameters used in the demos, see [`docs/AZURE-IAC.md`](./docs/AZURE-IAC.md).
+
 ### Azure Resources Created
+
 - Azure Container Registry
 - Log Analytics Workspace
 - Container Apps Environment
@@ -182,6 +192,7 @@ code .
 ```
 
 Key extensions:
+
 - CircleCI (circleci.circleci)
 - YAML (redhat.vscode-yaml)
 - Azure Tools (ms-azuretools.vscode-bicep)

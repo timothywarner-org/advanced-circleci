@@ -1,12 +1,15 @@
 # Demo 2: Slack Notifications Orb — Real-World Integration
+
 ## Module 3, Clip 3 (5 minutes)
 
 ### Overview
+
 Add the circleci/slack orb for deployment notifications. Show custom message templates and on_success/on_failure triggers.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Slack workspace with a #deployments channel
 2. Slack webhook URL ready (or mock for demo)
 3. CircleCI Context created with SLACK_WEBHOOK
@@ -143,11 +146,13 @@ jobs:
 ### 5. Setup and Demonstration (1 minute)
 
 **CircleCI Context Setup:**
+
 1. Organization Settings → Contexts
 2. Create "slack-notifications" context
 3. Add SLACK_WEBHOOK environment variable
 
 **Workflow with Context:**
+
 ```yaml
 workflows:
   build-deploy:
@@ -172,6 +177,7 @@ workflows:
 ---
 
 ## Key Takeaways
+
 - Slack orb: 2 lines vs 50+ lines of curl/JSON
 - Use CircleCI Contexts for secrets
 - Custom templates use Slack Block Kit
@@ -181,4 +187,5 @@ workflows:
 ---
 
 ## Transition
+
 "Notifications are great, but the real power is cloud deployments. Let's add Azure integration with OIDC authentication."

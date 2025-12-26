@@ -11,6 +11,12 @@ param location string
 @allowed(['Basic', 'Standard', 'Premium'])
 param sku string = 'Basic'
 
+@description('Whether the admin user is enabled (prefer disabled in production)')
+param adminUserEnabled bool = true
+
+@description('Tags to apply to the registry')
+param tags object = {}
+
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: name
   location: location
@@ -18,23 +24,9 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     name: sku
   }
   properties: {
-    adminUserEnabled: true
-    policies: {
-      quarantinePolicy: {
-        status: 'disabled'
-      }
-      trustPolicy: {
-        type: 'Notary'
-        status: 'disabled'
-      }
-      retentionPolicy: {
-        days: 7
-        status: sku == 'Premium' ? 'enabled' : 'disabled'
-      }
-    }
-    publicNetworkAccess: 'Enabled'
-    networkRuleBypassOptions: 'AzureServices'
+    adminUserEnabled: adminUserEnabled
   }
+  tags: tags
 }
 
 output id string = acr.id

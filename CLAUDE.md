@@ -36,7 +36,9 @@ npm run docker:run       # Run container locally
 ## Architecture
 
 ### Course Structure
+
 The course progresses through 10 demo configurations in `.circleci/configs/`:
+
 - **01-04**: Workflow orchestration (sequential, fan-out/fan-in, filters, approvals)
 - **05-07**: Configuration reuse (pipeline params, job params, commands)
 - **08-10**: Orbs integration (Node.js, Slack, Azure)
@@ -44,6 +46,7 @@ The course progresses through 10 demo configurations in `.circleci/configs/`:
 The final production config is `.circleci/config.yml` which combines all patterns.
 
 ### API Structure
+
 ```
 src/
 ├── index.js           # Express app entry point (port 3000)
@@ -57,6 +60,7 @@ src/
 ```
 
 ### Key API Endpoints
+
 - `GET /api/health`, `/api/health/live`, `/api/health/ready` - Health probes
 - `GET|POST /api/robots` - List/create robots
 - `GET|PUT|DELETE /api/robots/:id` - Robot operations
@@ -64,6 +68,7 @@ src/
 - `GET /api/metrics` - Fleet-wide metrics
 
 ### Infrastructure
+
 - **Docker**: Multi-stage Dockerfile with non-root user, Alpine base
 - **Azure**: Bicep templates in `infra/` deploy to Azure Container Apps
 - **Environments**: dev/staging/production with different scaling configs
@@ -75,16 +80,19 @@ The production config (`.circleci/config.yml`) demonstrates:
 **Orbs**: `circleci/node@5.2.0`, `circleci/slack@4.13.3`, `circleci/azure-cli@1.2.2`
 
 **Pipeline Parameters**:
+
 - `skip-tests` (boolean) - Skip test jobs
 - `deploy-environment` (enum: dev/staging/production)
 - `node-version` (string, default "20")
 
 **Workflows**:
+
 1. `build-test-deploy` - Main CI/CD with fan-out tests and sequential deploys
-2. `nightly-build` - Cron schedule "0 2 * * *"
+2. `nightly-build` - Cron schedule "0 2 ** *"
 3. `release` - Tag-triggered releases
 
 **Key Patterns**:
+
 - Fan-out: 1 build job → 4 parallel test jobs (unit, integration, e2e, security)
 - Fan-in: Tests → dev deploy → staging deploy → approval → production deploy
 - Branch filters: main, develop, feature/*
@@ -101,6 +109,7 @@ The production config (`.circleci/config.yml`) demonstrates:
 ## Environment Variables
 
 See `.env.example` for required variables:
+
 - `NODE_ENV`, `PORT`, `LOG_LEVEL` - App config
 - `AZURE_*` - Azure deployment settings
 - `SLACK_*` - Notification config
