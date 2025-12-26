@@ -1,0 +1,24 @@
+# Build Job
+# Standard build for Robot Fleet projects
+description: "Build a Robot Fleet project"
+executor: default
+parameters:
+  build-command:
+    type: string
+    default: "npm run build"
+    description: "Build command to run"
+steps:
+  - setup
+  - run:
+      name: Build application
+      command: << parameters.build-command >>
+  - run:
+      name: Lint code
+      command: npm run lint || true
+  - persist_to_workspace:
+      root: .
+      paths:
+        - node_modules
+        - dist
+        - public
+        - package.json

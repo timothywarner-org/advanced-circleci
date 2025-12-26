@@ -1,0 +1,24 @@
+# Orb metadata - this becomes the root of the packed orb
+version: 2.1
+
+description: |
+  Globomantics Robot Fleet API orb provides commands and jobs for deploying
+  and monitoring the Robot Fleet API. Use this orb to standardize your
+  CI/CD pipelines across all Globomantics projects.
+
+  ## Features
+  - Health check command with retry logic
+  - Deployment validation with rollback support
+  - Branded notifications
+  - Node.js executor pre-configured for Robot Fleet projects
+
+  ## Getting Started
+  Add the orb to your config:
+  ```yaml
+  orbs:
+    robot-fleet: globomantics/robot-fleet@1.0.0
+  ```
+
+display:
+  home_url: https://github.com/timothywarner-org/advanced-circleci
+  source_url: https://github.com/timothywarner-org/advanced-circleci/tree/main/orb-source

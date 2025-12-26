@@ -1,0 +1,54 @@
+# Health Check Command
+# Verify an endpoint is responding correctly with retry logic
+description: "Check if the Robot Fleet API is healthy"
+parameters:
+  url:
+    type: string
+    description: "Base URL of the API to check"
+  endpoint:
+    type: string
+    default: "/api/health"
+    description: "Health check endpoint path"
+  timeout:
+    type: integer
+    default: 30
+    description: "Timeout in seconds for each attempt"
+  retries:
+    type: integer
+    default: 5
+    description: "Number of retry attempts"
+  retry-delay:
+    type: integer
+    default: 10
+    description: "Seconds to wait between retries"
+steps:
+  - run:
+      name: Health Check - << parameters.url >><< parameters.endpoint >>
+      command: |
+        echo "╔════════════════════════════════════════════════════╗"
+        echo "║     GLOBOMANTICS HEALTH CHECK                      ║"
+        echo "╠════════════════════════════════════════════════════╣"
+        echo "║  URL: << parameters.url >><< parameters.endpoint >>"
+        echo "║  Timeout: << parameters.timeout >>s"
+        echo "║  Retries: << parameters.retries >>"
+        echo "╚════════════════════════════════════════════════════╝"
+
+        for i in $(seq 1 << parameters.retries >>); do
+          echo ""
+          echo "Attempt $i of << parameters.retries >>..."
+
+          if curl -sf --max-time << parameters.timeout >> \
+            "<< parameters.url >><< parameters.endpoint >>" > /dev/null; then
+            echo "Health check PASSED!"
+            exit 0
+          fi
+
+          if [ $i -lt << parameters.retries >> ]; then
+            echo "Failed, waiting << parameters.retry-delay >> seconds..."
+            sleep << parameters.retry-delay >>
+          fi
+        done
+
+        echo ""
+        echo "Health check FAILED after << parameters.retries >> attempts"
+        exit 1
