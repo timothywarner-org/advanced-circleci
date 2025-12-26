@@ -47,6 +47,7 @@ As development teams scale, CI/CD configurations become unwieldy. The fictional 
 ## Learning Objectives
 
 ### Terminal Objective 1
+
 **Design and implement multi-stage workflows utilizing complex job dependencies and execution patterns.**
 
 - Define sequential workflows using the `requires` keyword to enforce dependency order.
@@ -54,6 +55,7 @@ As development teams scale, CI/CD configurations become unwieldy. The fictional 
 - Utilize filters (branches, tags) to control which commits trigger specific workflow executions.
 
 ### Terminal Objective 2
+
 **Implement configuration reuse strategies using parameters to abstract variable data in jobs and workflows.**
 
 - Create and reference parameters within job definitions to generalize functions.
@@ -61,6 +63,7 @@ As development teams scale, CI/CD configurations become unwieldy. The fictional 
 - Identify scenarios where custom parameters are superior to using environment variables for configuration.
 
 ### Terminal Objective 3
+
 **Integrate and utilize certified Orbs to rapidly deploy common functions and third-party integrations.**
 
 - Locate and install partner and certified orbs from the CircleCI Registry.
@@ -71,49 +74,52 @@ As development teams scale, CI/CD configurations become unwieldy. The fictional 
 ## Course Organization
 
 ### Module 1 — Workflow Orchestration Mastery (30 mins)
+
 **Terminal Objective:** Design and implement multi-stage workflows utilizing complex job dependencies and execution patterns.
 
 1. **Clip 1: Beyond Sequential — Understanding Workflow Patterns (5 min)**  
-   *Lecture (PPT):* Introduce the workflow orchestration problem at Globomantics. Define sequential, parallel, and fan-out/fan-in patterns; show workflow graphs; emphasize `requires` as dependency foundation; compare to GitHub Actions matrix builds.
+   _Lecture (PPT):_ Introduce the workflow orchestration problem at Globomantics. Define sequential, parallel, and fan-out/fan-in patterns; show workflow graphs; emphasize `requires` as dependency foundation; compare to GitHub Actions matrix builds.
 2. **Clip 2: Building Sequential Dependencies with `requires` (5 min)**  
-   *Demo (Screencast):* Build a three-stage workflow (build → test → deploy) with dependency graph in CircleCI UI; show skipped downstream jobs on failure; demonstrate Copilot-assisted job configuration.
+   _Demo (Screencast):_ Build a three-stage workflow (build → test → deploy) with dependency graph in CircleCI UI; show skipped downstream jobs on failure; demonstrate Copilot-assisted job configuration.
 3. **Clip 3: Fan-Out Parallelism for Maximum Speed (5 min)**  
-   *Demo (Screencast):* Run unit-tests, integration-tests, and security-scan in parallel after build; add deploy job requiring all three (fan-in); highlight time savings and workflow DAG visualization.
+   _Demo (Screencast):_ Run unit-tests, integration-tests, and security-scan in parallel after build; add deploy job requiring all three (fan-in); highlight time savings and workflow DAG visualization.
 4. **Clip 4: Conditional Execution with Branch and Tag Filters (5 min)**  
-   *Lecture + Demo:* Use filters to control job triggers (deploy on `main`, integration-tests on PRs, release-build on version tags); show CircleCI "Skipped" status for filtered jobs.
+   _Lecture + Demo:_ Use filters to control job triggers (deploy on `main`, integration-tests on PRs, release-build on version tags); show CircleCI "Skipped" status for filtered jobs.
 5. **Clip 5: Advanced Patterns — Matrix and Scheduled Workflows (5 min)**  
-   *Lecture + Demo:* Introduce matrix-style testing with workflow parameters; scheduled workflows using triggers; approval jobs for manual gates; demonstrate CircleCI UI scheduling.
+   _Lecture + Demo:_ Introduce matrix-style testing with workflow parameters; scheduled workflows using triggers; approval jobs for manual gates; demonstrate CircleCI UI scheduling.
 6. **Clip 6: Module 1 Summary and Practice Challenge (5 min)**  
-   *Lecture:* Recap patterns and filter types; present Globomantics challenge with multi-branch deployment strategy; show solution `config.yml`; segue to Module 2 on configuration reuse.
+   _Lecture:_ Recap patterns and filter types; present Globomantics challenge with multi-branch deployment strategy; show solution `config.yml`; segue to Module 2 on configuration reuse.
 
 ### Module 2 — Configuration Reuse with Parameters (30 mins)
+
 **Terminal Objective:** Implement configuration reuse strategies using parameters to abstract variable data in jobs and workflows.
 
 1. **Clip 1: The DRY Principle in CI/CD Configuration (5 min)**  
-   *Lecture (PPT):* Connect DRY to CI/CD; map reuse hierarchy (Parameters → Commands → Executors → Orbs).
+   _Lecture (PPT):_ Connect DRY to CI/CD; map reuse hierarchy (Parameters → Commands → Executors → Orbs).
 2. **Clip 2: Pipeline Parameters for Workflow Control (5 min)**  
-   *Demo (Screencast):* Add pipeline parameters (e.g., `skip-tests`, `deploy-environment`); trigger pipelines via UI and API; demonstrate conditional workflow execution with `when`.
+   _Demo (Screencast):_ Add pipeline parameters (e.g., `skip-tests`, `deploy-environment`); trigger pipelines via UI and API; demonstrate conditional workflow execution with `when`.
 3. **Clip 3: Job Parameters for Reusable Job Definitions (5 min)**  
-   *Demo (Screencast):* Refactor multiple deploy jobs into one parameterized job (`environment`, `replicas`, `notify-slack`); show workflow reuse and line-count reduction.
+   _Demo (Screencast):_ Refactor multiple deploy jobs into one parameterized job (`environment`, `replicas`, `notify-slack`); show workflow reuse and line-count reduction.
 4. **Clip 4: Parameters vs. Environment Variables — When to Use Which (5 min)**  
-   *Lecture + Demo:* Explain config-time vs. runtime evaluation; provide decision framework; illustrate failure of using environment variables in `when` conditions.
+   _Lecture + Demo:_ Explain config-time vs. runtime evaluation; provide decision framework; illustrate failure of using environment variables in `when` conditions.
 5. **Clip 5: Commands — Reusable Step Sequences (5 min)**  
-   *Demo (Screencast):* Create `setup-node` and `deploy-azure` commands; show invocation across jobs and benefits as function-like abstractions.
+   _Demo (Screencast):_ Create `setup-node` and `deploy-azure` commands; show invocation across jobs and benefits as function-like abstractions.
 6. **Clip 6: Module 2 Summary and Practice Challenge (5 min)**  
-   *Lecture:* Recap reuse hierarchy; present matrix testing challenge across Node 18/20/22 using parameterized job; provide solution.
+   _Lecture:_ Recap reuse hierarchy; present matrix testing challenge across Node 18/20/22 using parameterized job; provide solution.
 
 ### Module 3 — Mastering Orbs and Reusable Components (30 mins)
+
 **Terminal Objective:** Integrate and utilize certified Orbs to rapidly deploy common functions and third-party integrations.
 
 1. **Clip 1: The CircleCI Orbs Ecosystem (5 min)**  
-   *Lecture (PPT):* Define orbs, tour registry categories, highlight key orbs, and explain semantic versioning plus pinning strategies; compare Orbs to GitHub Actions.
+   _Lecture (PPT):_ Define orbs, tour registry categories, highlight key orbs, and explain semantic versioning plus pinning strategies; compare Orbs to GitHub Actions.
 2. **Clip 2: Installing and Using Your First Orb (5 min)**  
-   *Demo (Screencast):* Add `circleci/node` orb; use `node/install-packages` command and `node/default` executor; show built-in caching and config validation.
+   _Demo (Screencast):_ Add `circleci/node` orb; use `node/install-packages` command and `node/default` executor; show built-in caching and config validation.
 3. **Clip 3: Slack Notifications Orb — Real-World Integration (5 min)**  
-   *Demo (Screencast):* Add `circleci/slack` orb with `SLACK_WEBHOOK` in contexts; use `slack/notify` for success/failure events; show notifications.
+   _Demo (Screencast):_ Add `circleci/slack` orb with `SLACK_WEBHOOK` in contexts; use `slack/notify` for success/failure events; show notifications.
 4. **Clip 4: Cloud Deployment Orbs — Azure Integration (5 min)**  
-   *Demo (Screencast):* Add `circleci/azure-cli` orb; configure OIDC authentication; deploy to Azure App Service with orb commands; contrast with manual scripting.
+   _Demo (Screencast):_ Add `circleci/azure-cli` orb; configure OIDC authentication; deploy to Azure App Service with orb commands; contrast with manual scripting.
 5. **Clip 5: Analyzing Config for Orb Extraction Opportunities (5 min)**  
-   *Lecture + Demo:* Identify duplicated deployment logic across repos; outline refactoring to commands or private orb; walk through orb development docs, `orb.yml`, validation, and publishing workflow.
+   _Lecture + Demo:_ Identify duplicated deployment logic across repos; outline refactoring to commands or private orb; walk through orb development docs, `orb.yml`, validation, and publishing workflow.
 6. **Clip 6: Capstone — Complete Globomantics Pipeline (5 min)**  
-   *Demo (Screencast):* Combine fan-out workflow, parameterized jobs, and orb integrations (node, slack, azure-cli); review workflow graph and credit savings compared to baseline pipeline.
+   _Demo (Screencast):_ Combine fan-out workflow, parameterized jobs, and orb integrations (node, slack, azure-cli); review workflow graph and credit savings compared to baseline pipeline.

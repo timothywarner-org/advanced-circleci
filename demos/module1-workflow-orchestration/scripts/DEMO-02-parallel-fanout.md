@@ -1,12 +1,15 @@
 # Demo 2: Fan-Out Parallelism for Maximum Speed
+
 ## Module 1, Clip 3 (5 minutes)
 
 ### Overview
+
 Transform the Globomantics pipeline to run tests in parallel (fan-out pattern), then converge to a single deploy job (fan-in pattern).
 
 ---
 
 ## Pre-Demo Setup
+
 1. Have the sequential config from Demo 1 ready
 2. Stopwatch or timer visible (to show time savings)
 3. CircleCI dashboard open
@@ -20,6 +23,7 @@ Transform the Globomantics pipeline to run tests in parallel (fan-out pattern), 
 **TALKING POINT:** "Our sequential pipeline takes 15 minutes because we run three 5-minute test suites one after another. Let's fix that."
 
 Draw or show the current flow:
+
 ```
 build (2min) → test (15min) → deploy (1min) = 18 minutes total
 ```
@@ -105,6 +109,7 @@ workflows:
 ### 4. Visualize the Pattern (30 seconds)
 
 **DRAW or SHOW:**
+
 ```
                  ┌─── unit-tests ───┐
                  │                  │
@@ -126,6 +131,7 @@ git push
 **ACTION:** Show CircleCI dashboard
 
 **POINT OUT:**
+
 - Workflow graph shows parallel branches
 - All three test jobs start simultaneously
 - Deploy waits for all three
@@ -145,6 +151,7 @@ git push
 ---
 
 ## Key Takeaways
+
 - Multiple jobs can `require` the same upstream job
 - All requiring jobs start as soon as the upstream completes
 - Fan-in happens when a job requires multiple upstream jobs
@@ -153,4 +160,5 @@ git push
 ---
 
 ## Transition
+
 "Parallel execution is powerful, but sometimes we need even more control. Let's see how to use filters to control exactly when jobs run."

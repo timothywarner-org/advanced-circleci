@@ -1,12 +1,15 @@
 # Demo 3: Cloud Deployment Orbs — Azure Integration
+
 ## Module 3, Clip 4 (5 minutes)
 
 ### Overview
+
 Add circleci/azure-cli orb with OIDC authentication for passwordless, secure Azure deployments. Deploy to Azure Container Apps.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Azure subscription with Container Apps configured
 2. Azure AD app registration with federated credentials
 3. CircleCI Context "azure-oidc" with required variables
@@ -142,6 +145,7 @@ workflows:
 ## Azure OIDC Setup Checklist
 
 1. **Azure AD App Registration**
+
    ```bash
    az ad app create --display-name "CircleCI-OIDC"
    ```
@@ -160,6 +164,7 @@ workflows:
 ---
 
 ## Key Takeaways
+
 - OIDC = passwordless Azure auth
 - No secrets to rotate or leak
 - azure-cli orb handles token exchange
@@ -169,4 +174,5 @@ workflows:
 ---
 
 ## Transition
+
 "We've built a production-ready pipeline with orbs. Let's step back and analyze how to identify orb opportunities in existing configs."

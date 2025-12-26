@@ -35,9 +35,21 @@ param maxReplicas int = 10
 @description('Environment variables for the container')
 param environmentVariables array = []
 
+@description('Registry server for pulling images (set when using ACR)')
+param registryServer string = ''
+
+@description('Identity to use for registry authentication (SystemAssigned or resource ID)')
+param registryIdentity string = ''
+
+@description('Tags to apply to the container app')
+param tags object = {}
+
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: name
   location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     managedEnvironmentId: containerAppEnvId
     configuration: {
@@ -59,6 +71,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           allowedHeaders: ['*']
         }
       }
+      registries: empty(registryServer) ? [] : [
+        {
+          server: registryServer
+          identity: registryIdentity
+        }
+      ]
       secrets: []
     }
     template: {
@@ -109,9 +127,11 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       }
     }
   }
+  tags: tags
 }
 
 output id string = containerApp.id
 output name string = containerApp.name
 output fqdn string = containerApp.properties.configuration.ingress.fqdn
 output latestRevisionName string = containerApp.properties.latestRevisionName
+output principalId string = containerApp.identity.principalId

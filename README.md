@@ -133,20 +133,13 @@ advanced-circleci/
 The `.circleci/configs/` directory contains configurations that build on each other:
 
 ### Module 1: Workflow Orchestration
+
 1. `01-sequential-baseline.yml` - Basic sequential workflow
 2. `02-parallel-fanout.yml` - Fan-out/fan-in pattern
 3. `03-branch-tag-filters.yml` - Conditional execution
 4. `04-approval-scheduled.yml` - Manual gates and schedules
 
 ### Module 2: Configuration Reuse
-5. `05-pipeline-parameters.yml` - Workflow control
-6. `06-job-parameters.yml` - Reusable job definitions
-7. `07-commands-reuse.yml` - Step abstractions
-
-### Module 3: Orbs & Integrations
-8. `08-orbs-intro.yml` - Node.js orb basics
-9. `09-slack-orb.yml` - Notifications
-10. `10-azure-orb.yml` - Cloud deployment
 
 ## Azure Deployment
 
@@ -210,13 +203,18 @@ Key extensions:
 - [Azure Container Apps Docs](https://learn.microsoft.com/azure/container-apps/)
 - [Course Companion Materials](./docs/)
 
+## Maintainer
+
+- **Author:** Tim Warner
+- **Email:** tim@techtrainertim.com
+- **Website:** https://TechTrainerTim.com
+
 ## License
 
 MIT License - See [LICENSE](./LICENSE) for details.
 
 ---
 
-**Author:** Tim Warner
 **Course:** CircleCI Advanced Configuration
 **Platform:** Pluralsight
 **Email:** tim@techtrainertim.com

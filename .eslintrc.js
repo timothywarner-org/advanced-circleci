@@ -1,6 +1,7 @@
 /**
  * ESLint Configuration
  * Code quality rules for Globomantics Robot API
+ * Integrates with Prettier for formatting
  */
 
 module.exports = {
@@ -9,7 +10,10 @@ module.exports = {
     jest: true,
     es2021: true
   },
-  extends: ['eslint:recommended'],
+  extends: [
+    'eslint:recommended',
+    'prettier'
+  ],
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module'
@@ -17,11 +21,13 @@ module.exports = {
   rules: {
     'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'no-console': 'off',
-    semi: ['error', 'always'],
-    quotes: ['error', 'single', { avoidEscape: true }],
-    indent: ['error', 2],
-    'comma-dangle': ['error', 'never'],
-    'no-trailing-spaces': 'error',
-    'eol-last': 'error'
+    'eqeqeq': ['error', 'always'],
+    'curly': ['error', 'all'],
+    'no-var': 'error',
+    'prefer-const': 'error',
+    'no-multiple-empty-lines': ['error', { max: 1, maxEOF: 0 }],
+    'no-duplicate-imports': 'error',
+    'no-template-curly-in-string': 'warn',
+    'require-await': 'error'
   }
 };

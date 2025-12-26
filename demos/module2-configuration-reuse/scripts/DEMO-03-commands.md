@@ -1,12 +1,15 @@
 # Demo 3: Commands — Reusable Step Sequences
+
 ## Module 2, Clip 5 (5 minutes)
 
 ### Overview
+
 Extract repeated step sequences into commands—think of them as "functions" you can call from multiple jobs.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Show jobs with repeated step patterns (checkout, restore_cache, npm install, save_cache)
 2. Highlight the duplication visually
 
@@ -184,6 +187,7 @@ jobs:
 ---
 
 ## Key Takeaways
+
 - Commands are reusable step sequences
 - Think of them as "functions" for your CI config
 - Commands can have parameters just like jobs
@@ -193,4 +197,5 @@ jobs:
 ---
 
 ## Transition
+
 "We've mastered configuration reuse within a single repository. But what about sharing across repositories? That's where Orbs come in—and that's Module 3."

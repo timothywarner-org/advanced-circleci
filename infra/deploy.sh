@@ -4,7 +4,7 @@
 
 set -e
 
-ENVIRONMENT=${1:-dev}
+ENVIRONMENT=${1:-staging}
 RESOURCE_GROUP="globomantics-robots-${ENVIRONMENT}"
 LOCATION="eastus"
 
@@ -17,8 +17,8 @@ echo "Location: ${LOCATION}"
 echo ""
 
 # Validate environment
-if [[ ! "$ENVIRONMENT" =~ ^(dev|staging|production)$ ]]; then
-    echo "Error: Invalid environment. Use: dev, staging, or production"
+if [[ ! "$ENVIRONMENT" =~ ^(staging|production)$ ]]; then
+    echo "Error: Invalid environment. Use: staging or production"
     exit 1
 fi
 

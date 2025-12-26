@@ -1,6 +1,7 @@
 # Learning Objectives Reference
 
 ## Terminal Objective 1
+
 **Design and implement multi-stage workflows utilizing complex job dependencies and execution patterns.**
 
 ### Enabling Objectives
@@ -12,6 +13,7 @@
 | Utilize filters (branches, tags) for conditional execution | Demo 3 | `03-branch-tag-filters.yml` |
 
 ### Key Concepts
+
 - `requires:` creates job dependencies
 - Fan-out: multiple jobs requiring same upstream job
 - Fan-in: single job requiring multiple upstream jobs
@@ -23,6 +25,7 @@
 ---
 
 ## Terminal Objective 2
+
 **Implement configuration reuse strategies using parameters to abstract variable data in jobs and workflows.**
 
 ### Enabling Objectives
@@ -34,6 +37,7 @@
 | Identify when parameters beat environment variables | Demo 4 | N/A (conceptual) |
 
 ### Key Concepts
+
 - Pipeline parameters: `<< pipeline.parameters.name >>`
 - Job parameters: `<< parameters.name >>`
 - Parameter types: boolean, string, enum, integer
@@ -44,6 +48,7 @@
 ---
 
 ## Terminal Objective 3
+
 **Integrate and utilize certified Orbs to rapidly deploy common functions and third-party integrations.**
 
 ### Enabling Objectives
@@ -56,6 +61,7 @@
 | Review custom orb development requirements | Lecture | N/A |
 
 ### Key Concepts
+
 - Orb declaration: `orbs: name: namespace/orb@version`
 - Version pinning strategies
 - Using orb executors, commands, and jobs
@@ -89,7 +95,9 @@ After completing this course, learners should be able to:
 ## Practice Challenges
 
 ### Module 1 Challenge
+
 Design a workflow that:
+
 - Builds once
 - Tests in parallel (unit, integration, e2e)
 - Deploys to staging on `develop` branch
@@ -98,13 +106,17 @@ Design a workflow that:
 **Solution:** `demos/module1-workflow-orchestration/configs/module1-challenge-solution.yml`
 
 ### Module 2 Challenge
+
 Refactor a pipeline with 5 nearly-identical deploy jobs into:
+
 - One parameterized job
 - Reusable commands for common steps
 - Pipeline parameters for environment selection
 
 ### Module 3 Challenge
+
 Integrate the following orbs:
+
 - `circleci/node` for build optimization
 - `circleci/slack` for deployment notifications
 - `circleci/azure-cli` for cloud deployment

@@ -5,6 +5,7 @@
 Before starting the course demos, ensure you have:
 
 ### Required
+
 - [ ] GitHub account with repository access
 - [ ] CircleCI account (free tier is sufficient)
 - [ ] Node.js 18 or higher installed
@@ -12,6 +13,7 @@ Before starting the course demos, ensure you have:
 - [ ] Git configured with SSH keys
 
 ### For Module 3 (Azure Deployment)
+
 - [ ] Azure subscription (free tier works)
 - [ ] Azure CLI installed
 - [ ] Docker installed locally
@@ -30,9 +32,11 @@ Before starting the course demos, ensure you have:
 Navigate to **Organization Settings** → **Contexts**:
 
 #### slack-notifications
+
 - `SLACK_WEBHOOK` - Your Slack webhook URL
 
 #### azure-oidc (Module 3)
+
 - `AZURE_CLIENT_ID` - App registration client ID
 - `AZURE_TENANT_ID` - Azure AD tenant ID
 - `AZURE_SUBSCRIPTION_ID` - Target subscription
@@ -58,6 +62,7 @@ az ad sp create --id $APP_ID
 ### 2. Add Federated Credential
 
 In Azure Portal:
+
 1. Go to **Azure Active Directory** → **App registrations**
 2. Select your app → **Certificates & secrets**
 3. **Federated credentials** → **Add credential**
@@ -127,16 +132,19 @@ Before each recording session:
 ## Troubleshooting
 
 ### CircleCI Pipeline Not Triggering
+
 - Check `.circleci/config.yml` syntax
 - Verify branch filters match current branch
 - Check project settings in CircleCI
 
 ### Azure OIDC Failing
+
 - Verify federated credential subject matches
 - Check org/project IDs are correct
 - Ensure service principal has required permissions
 
 ### Slack Notifications Not Working
+
 - Verify webhook URL is correct
 - Check Context is attached to workflow
 - Test webhook with curl directly

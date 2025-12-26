@@ -14,6 +14,9 @@ param logAnalyticsWorkspaceId string
 @secure()
 param logAnalyticsWorkspaceKey string
 
+@description('Tags to apply to the Container Apps environment')
+param tags object = {}
+
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: name
   location: location
@@ -27,6 +30,7 @@ resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
     }
     zoneRedundant: false
   }
+  tags: tags
 }
 
 output environmentId string = containerAppEnv.id
