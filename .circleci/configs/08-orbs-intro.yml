@@ -1,0 +1,94 @@
+# Module 3 - Introduction to Orbs
+# Demo: Clip 2 - Installing and Using Your First Orb
+# Replace manual setup with circleci/node orb
+
+version: 2.1
+
+# ============================================
+# ORBS - Shareable Configuration Packages
+# Version pinning: major.minor.patch
+# ============================================
+orbs:
+  # CircleCI's official Node.js orb
+  # Includes: executors, commands, jobs for Node.js projects
+  node: circleci/node@5.2.0
+
+# ============================================
+# BEFORE: Manual Node.js setup (15+ lines per job)
+# ============================================
+# jobs:
+#   build-manual:
+#     docker:
+#       - image: cimg/node:20.0
+#     steps:
+#       - checkout
+#       - restore_cache:
+#           keys:
+#             - node-deps-{{ checksum "package-lock.json" }}
+#       - run: npm ci
+#       - save_cache:
+#           key: node-deps-{{ checksum "package-lock.json" }}
+#           paths:
+#             - node_modules
+#       - run: npm run build
+
+# ============================================
+# AFTER: Using node orb (5 lines!)
+# ============================================
+jobs:
+  build:
+    # Use the orb's executor instead of defining our own
+    executor:
+      name: node/default
+      tag: "20"
+    steps:
+      - checkout
+      # Orb command: handles restore_cache, npm ci, save_cache automatically!
+      - node/install-packages:
+          pkg-manager: npm
+      - run: npm run build
+      - run: npm run lint
+
+  test:
+    executor:
+      name: node/default
+      tag: "20"
+    steps:
+      - checkout
+      - node/install-packages
+      - run: npm test
+      - store_test_results:
+          path: test-results
+
+  # You can also use orb JOBS directly in workflows
+  # The node orb provides a 'node/test' job we could use
+
+workflows:
+  version: 2
+
+  build-and-test:
+    jobs:
+      - build
+
+      # Option 1: Our custom test job using orb commands
+      - test:
+          requires:
+            - build
+
+      # Option 2: Use the orb's built-in test job (commented out)
+      # - node/test:
+      #     pkg-manager: npm
+      #     requires:
+      #       - build
+
+# ============================================
+# ORBS PROVIDE:
+# - Executors: Pre-configured Docker images
+# - Commands: Reusable step sequences
+# - Jobs: Complete job definitions
+#
+# BENEFITS:
+# - Less YAML to write and maintain
+# - Best practices built-in (caching, etc.)
+# - Versioned and tested by CircleCI/vendors
+# ============================================

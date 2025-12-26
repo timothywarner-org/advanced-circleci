@@ -1,0 +1,123 @@
+# Module 1 - Conditional Execution with Filters
+# Demo: Clip 4 - Conditional Execution with Branch and Tag Filters
+# Control WHICH commits trigger WHICH jobs
+
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run build
+
+  unit-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run test:unit
+
+  integration-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run test:integration
+
+  e2e-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run test:e2e
+
+  deploy-staging:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - run: echo "Deploying to staging..."
+
+  deploy-production:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - run: echo "Deploying to production..."
+
+  release-build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: echo "Building release package for tag ${CIRCLE_TAG}"
+
+workflows:
+  version: 2
+
+  # Main workflow with branch filters
+  build-test-deploy:
+    jobs:
+      # Build runs on all branches
+      - build
+
+      # Unit tests on all branches
+      - unit-tests:
+          requires:
+            - build
+
+      # Integration tests ONLY on pull requests and main
+      - integration-tests:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - main
+                - develop
+                - /pull\/.*/
+
+      # E2E tests ONLY on main and develop
+      - e2e-tests:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - main
+                - develop
+
+      # Staging deploy ONLY on develop branch
+      - deploy-staging:
+          requires:
+            - unit-tests
+            - integration-tests
+          filters:
+            branches:
+              only: develop
+
+      # Production deploy ONLY on main branch
+      - deploy-production:
+          requires:
+            - unit-tests
+            - integration-tests
+            - e2e-tests
+          filters:
+            branches:
+              only: main
+
+  # Release workflow - triggered ONLY by tags
+  release:
+    jobs:
+      - release-build:
+          filters:
+            # Only run on version tags (v1.0.0, v2.1.3, etc.)
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            # Ignore all branches (required for tag filtering)
+            branches:
+              ignore: /.*/

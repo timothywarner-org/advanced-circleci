@@ -1,0 +1,120 @@
+# Module 1 Challenge Solution
+# Design a workflow that:
+# - Builds once
+# - Tests in parallel (unit/integration/e2e)
+# - Deploys to staging on develop branch
+# - Deploys to production on main with manual approval
+
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+
+  unit-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: npm run test:unit
+      - store_test_results:
+          path: test-results
+
+  integration-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: npm run test:integration
+
+  e2e-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: npm run test:e2e
+
+  deploy-staging:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - run: echo "Deploying to staging..."
+
+  deploy-production:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - run: echo "Deploying to production..."
+
+workflows:
+  version: 2
+
+  globomantics-workflow:
+    jobs:
+      # Stage 1: Build
+      - build
+
+      # Stage 2: Parallel Tests (Fan-Out)
+      - unit-tests:
+          requires:
+            - build
+      - integration-tests:
+          requires:
+            - build
+      - e2e-tests:
+          requires:
+            - build
+
+      # Stage 3a: Deploy to Staging (develop only)
+      - deploy-staging:
+          requires:
+            - unit-tests
+            - integration-tests
+            - e2e-tests
+          filters:
+            branches:
+              only: develop
+
+      # Stage 3b: Deploy to Staging (main before prod)
+      - deploy-staging:
+          name: staging-before-prod
+          requires:
+            - unit-tests
+            - integration-tests
+            - e2e-tests
+          filters:
+            branches:
+              only: main
+
+      # Stage 4: Manual Approval (main only)
+      - hold-production:
+          type: approval
+          requires:
+            - staging-before-prod
+          filters:
+            branches:
+              only: main
+
+      # Stage 5: Deploy to Production (after approval)
+      - deploy-production:
+          requires:
+            - hold-production
+          filters:
+            branches:
+              only: main

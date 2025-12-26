@@ -1,0 +1,173 @@
+# Module 2 - Commands: Reusable Step Sequences
+# Demo: Clip 5 - Commands — Reusable Step Sequences
+# Extract repeated steps into reusable "functions"
+
+version: 2.1
+
+# ============================================
+# COMMANDS - Reusable Step Sequences
+# Think of these as "functions" you can call from jobs
+# ============================================
+commands:
+  # Command 1: Node.js setup with caching
+  setup-node:
+    description: "Set up Node.js environment with dependency caching"
+    parameters:
+      node-version:
+        type: string
+        default: "20"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node-deps-v1-{{ checksum "package-lock.json" }}
+            - node-deps-v1-
+      - run:
+          name: Install Node.js << parameters.node-version >>
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_<< parameters.node-version >>.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: node-deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - ./node_modules
+
+  # Command 2: Run tests with reporting
+  run-tests-with-reporting:
+    description: "Execute tests and store results/artifacts"
+    parameters:
+      test-type:
+        type: string
+        default: "unit"
+      coverage-threshold:
+        type: integer
+        default: 70
+    steps:
+      - run:
+          name: Run << parameters.test-type >> tests
+          command: npm run test:<< parameters.test-type >>
+      - run:
+          name: Check coverage threshold
+          command: |
+            echo "Checking coverage meets << parameters.coverage-threshold >>%..."
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-<< parameters.test-type >>
+
+  # Command 3: Azure deployment
+  deploy-to-azure:
+    description: "Deploy application to Azure Container Apps"
+    parameters:
+      resource-group:
+        type: string
+      app-name:
+        type: string
+      environment:
+        type: string
+    steps:
+      - run:
+          name: Azure Login
+          command: |
+            echo "Logging into Azure..."
+            # az login --service-principal...
+      - run:
+          name: Build and Push Docker Image
+          command: |
+            echo "Building Docker image..."
+            echo "docker build -t << parameters.app-name >>:${CIRCLE_SHA1} ."
+            echo "docker push acr.azurecr.io/<< parameters.app-name >>:${CIRCLE_SHA1}"
+      - run:
+          name: Deploy to << parameters.environment >>
+          command: |
+            echo "Deploying to Azure Container Apps..."
+            echo "az containerapp update \\"
+            echo "  --name << parameters.app-name >>-<< parameters.environment >> \\"
+            echo "  --resource-group << parameters.resource-group >> \\"
+            echo "  --image acr.azurecr.io/<< parameters.app-name >>:${CIRCLE_SHA1}"
+
+  # Command 4: Slack notification
+  notify-deployment:
+    description: "Send deployment notification to Slack"
+    parameters:
+      environment:
+        type: string
+      status:
+        type: string
+        default: "success"
+    steps:
+      - run:
+          name: Notify Slack
+          command: |
+            echo "Sending Slack notification..."
+            echo "Environment: << parameters.environment >>"
+            echo "Status: << parameters.status >>"
+            echo "Commit: ${CIRCLE_SHA1}"
+
+# ============================================
+# JOBS - Now much cleaner using commands!
+# ============================================
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      # Just call the command!
+      - setup-node:
+          node-version: "20"
+      - run: npm run build
+      - run: npm run lint
+
+  unit-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - setup-node
+      - run-tests-with-reporting:
+          test-type: unit
+          coverage-threshold: 80
+
+  integration-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - setup-node
+      - run-tests-with-reporting:
+          test-type: integration
+          coverage-threshold: 70
+
+  deploy:
+    parameters:
+      environment:
+        type: string
+    docker:
+      - image: cimg/base:current
+    steps:
+      - deploy-to-azure:
+          resource-group: globomantics-robots
+          app-name: robot-api
+          environment: << parameters.environment >>
+      - notify-deployment:
+          environment: << parameters.environment >>
+
+workflows:
+  version: 2
+  build-test-deploy:
+    jobs:
+      - build
+      - unit-tests:
+          requires:
+            - build
+      - integration-tests:
+          requires:
+            - build
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          requires:
+            - unit-tests
+            - integration-tests

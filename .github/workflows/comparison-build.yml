@@ -1,0 +1,170 @@
+# GitHub Actions Comparison Workflow
+# For Module 1 & 3: Compare with CircleCI concepts
+#
+# Key Differences:
+# - GitHub Actions: jobs.<job_id>.needs vs CircleCI: jobs.<job_name>.requires
+# - GitHub Actions: uses (reusable workflows) vs CircleCI: orbs
+# - GitHub Actions: matrix strategy vs CircleCI: workflow job parameters
+# - GitHub Actions: YAML anchors limited vs CircleCI: full YAML support
+
+name: CI/CD Pipeline (GitHub Actions Comparison)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '20'
+  AZURE_RESOURCE_GROUP: globomantics-robots
+
+jobs:
+  # Job 1: Build
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            dist/
+            package.json
+            Dockerfile
+
+  # Job 2-4: Parallel Tests (like CircleCI fan-out)
+  unit-tests:
+    needs: build  # GitHub Actions uses 'needs' vs CircleCI 'requires'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:unit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage/
+
+  integration-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:integration
+
+  security-scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+  # Job 5: Deploy (like CircleCI fan-in)
+  deploy:
+    needs: [unit-tests, integration-tests, security-scan]  # Fan-in pattern
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging  # GitHub Actions environments for approvals
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          echo "Deploying to staging environment..."
+          # az containerapp update ...
+
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: 'deployments'
+          payload: |
+            {
+              "text": "Deployed to staging from ${{ github.ref_name }}"
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+# ============================================
+# COMPARISON NOTES
+# ============================================
+#
+# | Concept              | CircleCI              | GitHub Actions         |
+# |---------------------|----------------------|------------------------|
+# | Dependencies        | requires: [job]      | needs: [job]           |
+# | Reusable packages   | orbs                 | actions / reusable WF  |
+# | Parameters          | parameters:          | inputs: (workflow_dispatch) |
+# | Manual approval     | type: approval       | environment: with protection |
+# | Scheduled runs      | triggers.schedule    | on: schedule           |
+# | Parallel tests      | Same job, requires   | Same with needs        |
+# | Artifacts           | persist_to_workspace | actions/upload-artifact|
+# | Caching             | save_cache/restore   | actions/cache          |
+#
+# CircleCI Advantages:
+# - Orbs are more flexible (executors + commands + jobs)
+# - Better YAML reuse with commands/executors
+# - Parameters at pipeline AND job level
+# - More granular config-time logic
+#
+# GitHub Actions Advantages:
+# - Native GitHub integration
+# - Larger marketplace of actions
+# - Built-in environment protection rules
+# - Matrix strategies more intuitive
+# ============================================

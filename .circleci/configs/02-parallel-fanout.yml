@@ -1,0 +1,107 @@
+# Module 1 - Fan-Out Pattern: Parallel Test Execution
+# Demo: Clip 3 - Fan-Out Parallelism for Maximum Speed
+# Shows dramatic time savings with parallel test jobs
+
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Build application
+          command: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+
+  # These three jobs run IN PARALLEL after build
+  unit-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run unit tests
+          command: npm run test:unit
+      - store_test_results:
+          path: test-results
+
+  integration-tests:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run integration tests
+          command: npm run test:integration
+      - store_test_results:
+          path: test-results
+
+  security-scan:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Security audit
+          command: npm audit --audit-level=moderate || true
+
+  # Fan-in: Deploy only after ALL parallel jobs complete
+  deploy:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run:
+          name: Deploy application
+          command: echo "All tests passed! Deploying..."
+
+workflows:
+  version: 2
+
+  # Fan-out/Fan-in Pattern:
+  #
+  #                 ┌─── unit-tests ───┐
+  #                 │                  │
+  #   build ────────┼─── integration ──┼───── deploy
+  #                 │                  │
+  #                 └─── security ─────┘
+  #
+  # Time savings: 3 jobs × 5 min = 5 min (parallel)
+  #               vs. 15 min (sequential)
+
+  build-test-deploy:
+    jobs:
+      - build
+
+      # Fan-out: All require build, run in parallel
+      - unit-tests:
+          requires:
+            - build
+      - integration-tests:
+          requires:
+            - build
+      - security-scan:
+          requires:
+            - build
+
+      # Fan-in: Requires ALL parallel jobs
+      - deploy:
+          requires:
+            - unit-tests
+            - integration-tests
+            - security-scan
