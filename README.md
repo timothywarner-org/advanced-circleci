@@ -3,6 +3,7 @@
 > CircleCI Advanced Configuration - Pluralsight Course Repository
 
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/timothywarner-org/advanced-circleci/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/timothywarner-org/advanced-circleci/tree/main)
+[![GitHub Actions](https://github.com/timothywarner-org/advanced-circleci/actions/workflows/comparison-build.yml/badge.svg)](https://github.com/timothywarner-org/advanced-circleci/actions/workflows/comparison-build.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-20-green.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 

@@ -32,7 +32,7 @@ As development teams scale, CI/CD configurations become unwieldy. The fictional 
 
 ### Author Notes
 
-- GitHub repository: `globomantics-advanced-circleci` (extends existing Globomantics scenarios from Course 1)
+- GitHub repository: `advanced-circleci` (extends existing Globomantics scenarios from Course 1)
 - All demos use CircleCI Free Plan (30,000 credits/month); no paid tier features required
 - VS Code with CircleCI extension for config validation and development
 - GenAI integration: GitHub Copilot and CircleCI MCP server for config generation and troubleshooting
