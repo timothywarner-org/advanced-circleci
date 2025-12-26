@@ -56,6 +56,76 @@ const robots = [
     batteryLevel: 12,
     lastMaintenance: '2023-12-20T12:00:00Z',
     createdAt: '2023-04-01T10:00:00Z'
+  },
+  {
+    id: 'rb-006',
+    name: 'Spark Welder Pro',
+    type: 'welding',
+    status: 'active',
+    location: 'factory-floor-a',
+    batteryLevel: 95,
+    lastMaintenance: '2024-01-15T09:00:00Z',
+    createdAt: '2023-09-12T08:30:00Z'
+  },
+  {
+    id: 'rb-007',
+    name: 'QC Scanner Alpha',
+    type: 'quality-control',
+    status: 'active',
+    location: 'factory-floor-b',
+    batteryLevel: 68,
+    lastMaintenance: '2024-01-05T11:00:00Z',
+    createdAt: '2023-03-22T13:00:00Z'
+  },
+  {
+    id: 'rb-008',
+    name: 'Forklift Unit 3',
+    type: 'logistics',
+    status: 'active',
+    location: 'warehouse-2',
+    batteryLevel: 54,
+    lastMaintenance: '2024-01-02T15:30:00Z',
+    createdAt: '2023-08-18T07:00:00Z'
+  },
+  {
+    id: 'rb-009',
+    name: 'Assembly Bot Delta',
+    type: 'assembly',
+    status: 'active',
+    location: 'factory-floor-b',
+    batteryLevel: 83,
+    lastMaintenance: '2024-01-14T10:00:00Z',
+    createdAt: '2023-10-05T09:30:00Z'
+  },
+  {
+    id: 'rb-010',
+    name: 'Heavy Lifter X2',
+    type: 'logistics',
+    status: 'maintenance',
+    location: 'maintenance-bay',
+    batteryLevel: 22,
+    lastMaintenance: '2024-01-17T14:00:00Z',
+    createdAt: '2023-02-14T11:00:00Z'
+  },
+  {
+    id: 'rb-011',
+    name: 'Micro Welder',
+    type: 'welding',
+    status: 'active',
+    location: 'factory-floor-a',
+    batteryLevel: 76,
+    lastMaintenance: '2024-01-11T16:00:00Z',
+    createdAt: '2023-11-20T08:00:00Z'
+  },
+  {
+    id: 'rb-012',
+    name: 'Vision Inspector',
+    type: 'quality-control',
+    status: 'inactive',
+    location: 'charging-station',
+    batteryLevel: 100,
+    lastMaintenance: '2024-01-16T12:00:00Z',
+    createdAt: '2023-07-08T10:30:00Z'
   }
 ];
 

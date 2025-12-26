@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Globomantics Robot Fleet - Command Center</title>
+    <link rel="icon" type="image/png" href="images/globomantics-logo-bug-darkblue.png">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <a href="/">
+                    <img src="images/Globo-Logo-white.svg" alt="Globomantics" class="logo">
+                </a>
+                <span class="tagline">ROBOT FLEET COMMAND CENTER</span>
+            </div>
+            <nav class="main-nav">
+                <a href="/" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="/api-docs.html" class="nav-link"><i class="fas fa-book"></i> API Docs</a>
+                <a href="/api/health" class="nav-link" target="_blank"><i class="fas fa-heartbeat"></i> Health</a>
+                <a href="/api/metrics" class="nav-link" target="_blank"><i class="fas fa-chart-line"></i> Metrics</a>
+            </nav>
+            <div class="header-actions">
+                <div class="status-indicator online">
+                    <span class="pulse"></span>
+                    <span>System Online</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Metrics Cards -->
+        <section class="metrics-section">
+            <div class="metrics-grid">
+                <div class="metric-card primary">
+                    <div class="metric-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="metric-content">
+                        <span class="metric-value" id="totalRobots">--</span>
+                        <span class="metric-label">Total Fleet</span>
+                    </div>
+                </div>
+                <div class="metric-card success">
+                    <div class="metric-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="metric-content">
+                        <span class="metric-value" id="activeRobots">--</span>
+                        <span class="metric-label">Active Units</span>
+                    </div>
+                </div>
+                <div class="metric-card warning">
+                    <div class="metric-icon">
+                        <i class="fas fa-tools"></i>
+                    </div>
+                    <div class="metric-content">
+                        <span class="metric-value" id="maintenanceRobots">--</span>
+                        <span class="metric-label">Maintenance</span>
+                    </div>
+                </div>
+                <div class="metric-card danger">
+                    <div class="metric-icon">
+                        <i class="fas fa-power-off"></i>
+                    </div>
+                    <div class="metric-content">
+                        <span class="metric-value" id="offlineRobots">--</span>
+                        <span class="metric-label">Offline</span>
+                    </div>
+                </div>
+                <div class="metric-card info">
+                    <div class="metric-icon">
+                        <i class="fas fa-battery-three-quarters"></i>
+                    </div>
+                    <div class="metric-content">
+                        <span class="metric-value" id="avgBattery">--%</span>
+                        <span class="metric-label">Avg Battery</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Content Grid -->
+        <div class="content-grid">
+            <!-- Robot Fleet Table -->
+            <section class="panel robot-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-robot"></i> Robot Fleet Status</h2>
+                    <div class="panel-actions">
+                        <button class="btn btn-sm btn-primary" onclick="refreshData()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="showAddRobotModal()">
+                            <i class="fas fa-plus"></i> Add Robot
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="table-container">
+                        <table class="data-table" id="robotTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Location</th>
+                                    <th>Battery</th>
+                                    <th>Last Maintenance</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="robotTableBody">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Side Panels -->
+            <div class="side-panels">
+                <!-- Location Overview -->
+                <section class="panel location-panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-map-marker-alt"></i> Location Overview</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="location-list" id="locationList">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Quick API Reference -->
+                <section class="panel api-panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-code"></i> Quick API</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="api-endpoint">
+                            <span class="method get">GET</span>
+                            <code>/api/robots</code>
+                        </div>
+                        <div class="api-endpoint">
+                            <span class="method get">GET</span>
+                            <code>/api/robots/:id</code>
+                        </div>
+                        <div class="api-endpoint">
+                            <span class="method post">POST</span>
+                            <code>/api/robots</code>
+                        </div>
+                        <div class="api-endpoint">
+                            <span class="method put">PUT</span>
+                            <code>/api/robots/:id</code>
+                        </div>
+                        <div class="api-endpoint">
+                            <span class="method delete">DELETE</span>
+                            <code>/api/robots/:id</code>
+                        </div>
+                        <a href="/api-docs.html" class="btn btn-block btn-outline">
+                            <i class="fas fa-book-open"></i> Full Documentation
+                        </a>
+                    </div>
+                </section>
+
+                <!-- System Health -->
+                <section class="panel health-panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-heartbeat"></i> System Health</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="health-item" id="apiHealth">
+                            <span class="health-label">API Status</span>
+                            <span class="health-status loading">Checking...</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Environment</span>
+                            <span class="health-value" id="envValue">--</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Version</span>
+                            <span class="health-value" id="versionValue">--</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Uptime</span>
+                            <span class="health-value" id="uptimeValue">--</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <img src="images/Globo-Logo-white-footer.svg" alt="Globomantics">
+            </div>
+            <div class="footer-content">
+                <p>Globomantics Robot Fleet API - Advanced CircleCI Configuration Course</p>
+                <p class="footer-disclaimer">This site is created for demonstrative purposes only.</p>
+            </div>
+            <div class="footer-links">
+                <a href="/api-docs.html">API Documentation</a>
+                <a href="/api/health">Health Check</a>
+                <a href="https://github.com/timothywarner-org/advanced-circleci" target="_blank">
+                    <i class="fab fa-github"></i> Source Code
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Add Robot Modal -->
+    <div class="modal" id="addRobotModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-robot"></i> Add New Robot</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addRobotForm">
+                    <div class="form-group">
+                        <label for="robotName">Robot Name</label>
+                        <input type="text" id="robotName" name="name" placeholder="e.g., Titan X9" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="robotType">Type</label>
+                        <select id="robotType" name="type" required>
+                            <option value="">Select Type...</option>
+                            <option value="assembly">Assembly</option>
+                            <option value="welding">Welding</option>
+                            <option value="quality-control">Quality Control</option>
+                            <option value="logistics">Logistics</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="security">Security</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="robotLocation">Location</label>
+                        <select id="robotLocation" name="location">
+                            <option value="unassigned">Unassigned</option>
+                            <option value="factory-floor-a">Factory Floor A</option>
+                            <option value="factory-floor-b">Factory Floor B</option>
+                            <option value="warehouse-1">Warehouse 1</option>
+                            <option value="warehouse-2">Warehouse 2</option>
+                            <option value="maintenance-bay">Maintenance Bay</option>
+                            <option value="charging-station">Charging Station</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="addRobot()">
+                    <i class="fas fa-plus"></i> Add Robot
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Robot Details Modal -->
+    <div class="modal" id="robotDetailsModal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-info-circle"></i> Robot Details</h3>
+                <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="robotDetailsContent">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
