@@ -1,29 +1,35 @@
-# Advanced CircleCI Configuration
+# Globomantics Robot Fleet API
 
-This repository contains course materials and reference assets for **CircleCI Advanced Configuration**, a 90-minute intermediate course by Tim Warner. It focuses on orchestrating complex multi-stage workflows, promoting configuration reuse through parameters and commands, and integrating certified CircleCI orbs to deliver reliable CI/CD pipelines at scale. The scenarios build on Globomantics robotics applications to demonstrate real-world patterns for sequencing jobs, fanning out and in, and deploying to cloud services.
+> CircleCI Advanced Configuration - Pluralsight Course Repository
 
-## Topics
-- CircleCI advanced pipelines
-- Workflow orchestration (fan-out/fan-in, sequential dependencies, approvals)
-- Pipeline parameters, commands, executors, and configuration reuse
-- CircleCI orbs for notifications and cloud deployments
-- CI/CD best practices for DevOps and platform engineering teams
-- Globomantics sample applications and deployment patterns
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/timothywarner-org/advanced-circleci/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/timothywarner-org/advanced-circleci/tree/main)
+[![Node.js](https://img.shields.io/badge/Node.js-20-green.svg)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-## Getting Started
-Review the course outline in `COURSE_OUTLINE.md` for an overview of learning objectives, demo scenarios, and module structure. Additional resources are available in `RESOURCES.md`.
+A RESTful API for managing Globomantics' robot fleet, built as a practical example for learning advanced CircleCI CI/CD patterns.
 
-## Maintainer and Contact
-- **Maintainer:** Tim Warner (timothywarner on GitHub)
-- **Email:** tim@techtrainertim.com
-- **Website:** https://TechTrainerTim.com
+## Quick Start
 
-For contribution guidelines, security policies, and support details, see the repository meta documents in this directory.
-# CircleCI Advanced Configuration
+```bash
+# Clone and install
+git clone https://github.com/timothywarner-org/advanced-circleci.git
+cd advanced-circleci
+npm install
 
-> Pluralsight Course Repository: Globomantics Robot Fleet API
+# Start development server
+npm run dev
 
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/YOUR_ORG/advanced-circleci/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/YOUR_ORG/advanced-circleci/tree/main)
+# Open the dashboard
+open http://localhost:3000
+```
+
+### What You'll See
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:3000` | Robot Fleet Dashboard |
+| `http://localhost:3000/api-docs.html` | Interactive API Documentation |
+| `http://localhost:3000/api/health` | Health Check Endpoint |
 
 ## Course Overview
 
@@ -37,79 +43,89 @@ This repository accompanies the Pluralsight course **CircleCI Advanced Configura
 | 2 | Configuration Reuse | Pipeline parameters, job parameters, commands, executors |
 | 3 | Orbs & Integrations | Node.js orb, Slack notifications, Azure deployment |
 
-## Quick Start
+## The Application
 
-```bash
-# Clone the repository
-git clone https://github.com/YOUR_ORG/advanced-circleci.git
-cd advanced-circleci
+The Globomantics Robot Fleet API manages a fleet of industrial robots with these features:
 
-# Install dependencies
-npm install
+- **Dashboard UI** - Visual overview of all robots with status indicators
+- **REST API** - Full CRUD operations for robot management
+- **Health Checks** - Kubernetes-ready liveness/readiness probes
+- **Metrics** - Fleet-wide operational statistics
 
-# Run the application
-npm start
-
-# Run tests
-npm test
-```
-
-## Project Structure
-
-```
-advanced-circleci/
-├── .circleci/
-│   ├── config.yml              # Production CircleCI config
-│   └── configs/                # Progressive demo configurations
-│       ├── 01-sequential-baseline.yml
-│       ├── 02-parallel-fanout.yml
-│       ├── 03-branch-tag-filters.yml
-│       └── ...
-├── .github/
-│   └── workflows/              # GitHub Actions comparison
-├── .vscode/                    # VS Code settings for demos
-├── src/                        # Node.js Express API
-│   ├── index.js
-│   ├── routes/
-│   ├── services/
-│   └── middleware/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── infra/                      # Azure Bicep templates
-│   ├── main.bicep
-│   ├── modules/
-│   └── environments/
-├── demos/                      # Demo scripts per module
-│   ├── module1-workflow-orchestration/
-│   ├── module2-configuration-reuse/
-│   └── module3-orbs-azure/
-└── docs/                       # Additional documentation
-```
-
-## The Application: Globomantics Robot Fleet API
-
-A RESTful API for managing Globomantics' robot fleet, including:
-
-- **GET /api/health** - Health checks and readiness probes
-- **GET /api/robots** - List all robots with filtering
-- **POST /api/robots** - Register a new robot
-- **GET /api/metrics** - Fleet-wide operational metrics
-
-### API Examples
+### API Endpoints
 
 ```bash
 # Health check
 curl http://localhost:3000/api/health
 
-# List active robots
+# List all robots
+curl http://localhost:3000/api/robots
+
+# Filter by status
 curl http://localhost:3000/api/robots?status=active
 
 # Create a robot
 curl -X POST http://localhost:3000/api/robots \
   -H "Content-Type: application/json" \
-  -d '{"name": "Atlas Prime", "type": "assembly", "location": "factory-a"}'
+  -d '{"name": "Atlas Prime", "type": "assembly", "location": "factory-floor-a"}'
+
+# Update robot
+curl -X PUT http://localhost:3000/api/robots/rb-001 \
+  -H "Content-Type: application/json" \
+  -d '{"status": "maintenance"}'
+```
+
+## Development
+
+### Using npm Scripts
+
+```bash
+npm run dev          # Start with hot reload
+npm start            # Production mode
+npm test             # Run all tests
+npm run lint         # Check code style
+```
+
+### Using Makefile
+
+```bash
+make help            # Show all commands
+make check           # Lint + test
+make docker-build-local   # Build Docker image
+make docker-run-local     # Run container
+```
+
+See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for the complete development guide.
+
+## Project Structure
+
+```
+advanced-circleci/
+├── src/                        # Node.js Express API
+│   ├── index.js                # App entry point
+│   ├── routes/                 # API route handlers
+│   ├── services/               # Business logic
+│   └── middleware/             # Express middleware
+├── public/                     # Frontend dashboard
+│   ├── index.html              # Dashboard UI
+│   ├── api-docs.html           # Interactive API docs
+│   ├── css/                    # Globomantics styling
+│   └── js/                     # Dashboard JavaScript
+├── tests/                      # Test suites
+│   ├── unit/                   # Unit tests
+│   ├── integration/            # API tests
+│   └── e2e/                    # End-to-end tests
+├── .circleci/
+│   ├── config.yml              # Production config
+│   └── configs/                # Progressive demo configs
+├── infra/                      # Azure Bicep templates
+│   ├── main.bicep              # Main template
+│   ├── modules/                # Infrastructure modules
+│   └── environments/           # Environment parameters
+├── demos/                      # Demo scripts per module
+├── docs/                       # Documentation
+├── Dockerfile                  # Container build
+└── Makefile                    # Development commands
 ```
 
 ## CircleCI Configuration Progression
@@ -132,49 +148,49 @@ The `.circleci/configs/` directory contains configurations that build on each ot
 9. `09-slack-orb.yml` - Notifications
 10. `10-azure-orb.yml` - Cloud deployment
 
-## Demo Scripts
-
-Each module has detailed demo scripts in `demos/`:
-
-```bash
-# Module 1 demos
-demos/module1-workflow-orchestration/scripts/
-  ├── DEMO-01-sequential-baseline.md
-  ├── DEMO-02-parallel-fanout.md
-  ├── DEMO-03-branch-tag-filters.md
-  └── DEMO-04-approval-scheduled.md
-```
-
 ## Azure Deployment
 
-The `infra/` directory contains Bicep templates for Azure Container Apps:
+Deploy to Azure Container Apps:
 
 ```bash
-# Deploy to dev environment
 cd infra
-./deploy.sh dev
-
-# Deploy to production
-./deploy.sh production
+./deploy.sh dev        # Deploy to dev
+./deploy.sh staging    # Deploy to staging
+./deploy.sh production # Deploy to production
 ```
 
+See [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) for the complete deployment guide.
+
 ### Azure Resources Created
-- Azure Container Registry
-- Log Analytics Workspace
-- Container Apps Environment
-- Container App (robot-api)
+
+| Resource | Purpose |
+|----------|---------|
+| Container Registry | Docker image storage |
+| Container Apps Environment | Hosting environment |
+| Container App | The running API |
+| Log Analytics | Logging and monitoring |
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Local setup and development guide |
+| [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) | Azure deployment and CI/CD setup |
+| [COURSE_OUTLINE.md](COURSE_OUTLINE.md) | Course structure and learning objectives |
+| [LEARNING-OBJECTIVES.md](docs/LEARNING-OBJECTIVES.md) | Detailed learning objectives |
 
 ## Prerequisites
 
-- Node.js 18+
-- Docker (for container builds)
-- CircleCI account (Free tier works!)
-- Azure subscription (for Module 3 demos)
-- VS Code with CircleCI extension
+| Tool | Version | Required For |
+|------|---------|--------------|
+| Node.js | 18+ | Running the app |
+| Docker | 20+ | Container builds |
+| Azure CLI | 2.50+ | Azure deployment |
+| CircleCI Account | Free tier | CI/CD pipeline |
 
 ## VS Code Setup
 
-Open the project in VS Code and install recommended extensions:
+Install recommended extensions:
 
 ```bash
 code .
@@ -182,12 +198,12 @@ code .
 ```
 
 Key extensions:
-- CircleCI (circleci.circleci)
-- YAML (redhat.vscode-yaml)
-- Azure Tools (ms-azuretools.vscode-bicep)
-- GitHub Copilot (optional, for GenAI demos)
+- CircleCI (`circleci.circleci`)
+- YAML (`redhat.vscode-yaml`)
+- Azure Bicep (`ms-azuretools.vscode-bicep`)
+- ESLint (`dbaeumer.vscode-eslint`)
 
-## Course Resources
+## Resources
 
 - [CircleCI Documentation](https://circleci.com/docs/)
 - [CircleCI Orb Registry](https://circleci.com/developer/orbs)
@@ -203,3 +219,5 @@ MIT License - See [LICENSE](./LICENSE) for details.
 **Author:** Tim Warner
 **Course:** CircleCI Advanced Configuration
 **Platform:** Pluralsight
+**Email:** tim@techtrainertim.com
+**Website:** https://TechTrainerTim.com
