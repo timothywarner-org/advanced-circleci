@@ -168,7 +168,7 @@ workflows:
 ## Slack Orb Events
 
 | Event | Triggers |
-|-------|----------|
+| --- | --- |
 | `pass` | Job succeeds |
 | `fail` | Job fails |
 | `always` | Every time |

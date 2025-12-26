@@ -88,7 +88,7 @@ The production config (`.circleci/config.yml`) demonstrates:
 **Workflows**:
 
 1. `build-test-deploy` - Main CI/CD with fan-out tests and sequential deploys
-2. `nightly-build` - Cron schedule "0 2 * * *"
+2. `nightly-build` - Cron schedule `0 2 * * *`
 3. `release` - Tag-triggered releases
 
 **Key Patterns**:

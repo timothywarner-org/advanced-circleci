@@ -170,7 +170,7 @@ build ──────────────────┼── integratio
 **SHOW TABLE:**
 
 | Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
+| --- | --- | --- | --- |
 | Config lines | 200+ | 80 | 60% reduction |
 | Build time | 25 min | 10 min | 60% faster |
 | Jobs to maintain | 9 | 4 | 55% fewer |

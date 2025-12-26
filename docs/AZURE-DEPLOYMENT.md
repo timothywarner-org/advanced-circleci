@@ -71,7 +71,7 @@ az version
 ### Components
 
 | Component | Purpose |
-|-----------|---------|
+| --- | --- |
 | **Azure Container Registry** | Stores Docker images |
 | **Azure Container Apps** | Runs containerized API (serverless) |
 | **Container Apps Environment** | Shared environment for apps |
@@ -112,6 +112,7 @@ cd infra
 ```
 
 This creates:
+
 - Resource Group: `globomantics-robots-{environment}`
 - Container Registry: `globomanticsacr{environment}`
 - Container Apps Environment
@@ -189,7 +190,7 @@ az role assignment create \
 Go to **CircleCI > Project Settings > Environment Variables** and add:
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| --- | --- | --- |
 | `AZURE_CLIENT_ID` | Azure AD App ID | `12345678-1234-1234-1234-123456789012` |
 | `AZURE_TENANT_ID` | Azure AD Tenant ID | `87654321-4321-4321-4321-210987654321` |
 | `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | `abcdef12-3456-7890-abcd-ef1234567890` |
@@ -289,7 +290,7 @@ make docker-stop
 Each environment has its own Bicep parameter file:
 
 | File | Environment | Purpose |
-|------|-------------|---------|
+| --- | --- | --- |
 | `infra/environments/dev.bicepparam` | Development | Testing new features |
 | `infra/environments/staging.bicepparam` | Staging | Pre-production validation |
 | `infra/environments/production.bicepparam` | Production | Live environment |
@@ -395,7 +396,7 @@ az monitor log-analytics query \
 ### Health Check Endpoints
 
 | Endpoint | Purpose | Expected Response |
-|----------|---------|-------------------|
+| --- | --- | --- |
 | `/api/health` | Overall health | `{ "status": "healthy" }` |
 | `/api/health/live` | Liveness probe | `{ "status": "alive" }` |
 | `/api/health/ready` | Readiness probe | `{ "status": "ready" }` |

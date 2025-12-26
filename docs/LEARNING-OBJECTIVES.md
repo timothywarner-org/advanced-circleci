@@ -7,7 +7,7 @@
 ### Enabling Objectives
 
 | Objective | Demo | Config File |
-|-----------|------|-------------|
+| --- | --- | --- |
 | Define sequential workflows using `requires` keyword | Demo 1 | `01-sequential-baseline.yml` |
 | Configure parallel jobs using fan-out workflows | Demo 2 | `02-parallel-fanout.yml` |
 | Utilize filters (branches, tags) for conditional execution | Demo 3 | `03-branch-tag-filters.yml` |
@@ -31,7 +31,7 @@
 ### Enabling Objectives
 
 | Objective | Demo | Config File |
-|-----------|------|-------------|
+| --- | --- | --- |
 | Create and reference parameters within job definitions | Demo 2 | `06-job-parameters.yml` |
 | Pass configuration parameters between jobs | Demo 1 | `05-pipeline-parameters.yml` |
 | Identify when parameters beat environment variables | Demo 4 | N/A (conceptual) |
@@ -54,7 +54,7 @@
 ### Enabling Objectives
 
 | Objective | Demo | Config File |
-|-----------|------|-------------|
+| --- | --- | --- |
 | Locate and install orbs from CircleCI Registry | Demo 1 | `08-orbs-intro.yml` |
 | Invoke pre-built commands from community Orbs | Demo 2 | `09-slack-orb.yml` |
 | Analyze config for orb extraction opportunities | Demo 4 | Capstone |

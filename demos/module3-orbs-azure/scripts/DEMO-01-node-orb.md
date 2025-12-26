@@ -112,7 +112,7 @@ jobs:
 ## Orb Version Strategies
 
 | Strategy | Example | Use Case |
-|----------|---------|----------|
+| --- | --- | --- |
 | Exact | `@5.2.0` | Production (stable) |
 | Minor | `@5.2` | Auto-patch updates |
 | Major | `@5` | Auto-minor updates |

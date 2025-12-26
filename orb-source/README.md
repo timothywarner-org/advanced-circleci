@@ -32,14 +32,14 @@ workflows:
 ### Executors
 
 | Executor | Description |
-|----------|-------------|
+| --- | --- |
 | `default` | Node.js 20 executor optimized for Robot Fleet projects |
 | `with-docker` | Base executor with Docker support for container builds |
 
 ### Commands
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `setup` | Initialize project with caching |
 | `health-check` | Check API health with retry logic |
 | `validate-deployment` | Verify deployment with comprehensive checks |
@@ -48,7 +48,7 @@ workflows:
 ### Jobs
 
 | Job | Description |
-|-----|-------------|
+| --- | --- |
 | `build` | Build the Robot Fleet project |
 | `test` | Run tests with coverage |
 | `deploy-and-verify` | Deploy and validate deployment |

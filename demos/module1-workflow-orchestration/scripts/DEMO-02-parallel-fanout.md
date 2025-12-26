@@ -142,7 +142,7 @@ git push
 ## Time Comparison
 
 | Pattern | Build | Tests | Deploy | Total |
-|---------|-------|-------|--------|-------|
+| --- | --- | --- | --- | --- |
 | Sequential | 2min | 15min | 1min | 18min |
 | Parallel | 2min | 5min | 1min | 8min |
 

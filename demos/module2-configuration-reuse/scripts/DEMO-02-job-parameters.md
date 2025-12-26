@@ -157,7 +157,7 @@ workflows:
 ### 4. Show Line Count Comparison (30 seconds)
 
 | Metric | Before | After |
-|--------|--------|-------|
+| --- | --- | --- |
 | Lines of YAML | 60+ | 25 |
 | Jobs to maintain | 3 | 1 |
 | Bug fix locations | 3 | 1 |

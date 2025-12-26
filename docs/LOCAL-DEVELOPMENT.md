@@ -37,7 +37,7 @@ open http://localhost:3000
 ## Prerequisites
 
 | Tool | Version | Purpose |
-|------|---------|---------|
+| --- | --- | --- |
 | Node.js | 18+ (20 recommended) | Runtime |
 | npm | 9+ | Package manager |
 | Docker | 20+ | Container builds (optional) |
@@ -121,7 +121,7 @@ LOG_LEVEL=debug
 ```
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `PORT` | `3000` | Server port |
 | `NODE_ENV` | `development` | Environment mode |
 | `LOG_LEVEL` | `info` | Logging verbosity |
@@ -159,6 +159,7 @@ open coverage/lcov-report/index.html
 ```
 
 **Coverage Thresholds:**
+
 - Branches: 70%
 - Functions: 70%
 - Lines: 70%
@@ -240,14 +241,14 @@ http://localhost:3000
 ### Dashboard & Docs
 
 | Path | Description |
-|------|-------------|
+| --- | --- |
 | `/` | Robot Fleet Dashboard |
 | `/api-docs.html` | Interactive API Documentation |
 
 ### Health Endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
+| --- | --- | --- |
 | GET | `/api/health` | Overall health status |
 | GET | `/api/health/live` | Liveness probe |
 | GET | `/api/health/ready` | Readiness probe |
@@ -256,7 +257,7 @@ http://localhost:3000
 ### Robot Endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
+| --- | --- | --- |
 | GET | `/api/robots` | List all robots |
 | GET | `/api/robots?status=active` | Filter by status |
 | GET | `/api/robots/:id` | Get robot by ID |
@@ -268,7 +269,7 @@ http://localhost:3000
 ### Metrics Endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
+| --- | --- | --- |
 | GET | `/api/metrics` | Fleet metrics |
 | GET | `/api/metrics/performance` | Performance stats |
 | GET | `/api/metrics/uptime` | Uptime statistics |
@@ -374,7 +375,7 @@ npm test -- --testTimeout=30000
 ## Makefile Commands Reference
 
 | Command | Description |
-|---------|-------------|
+| --- | --- |
 | `make help` | Show all available commands |
 | `make install` | Install dependencies |
 | `make dev` | Start dev server |

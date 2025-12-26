@@ -179,7 +179,7 @@ jobs:
 ### 5. Before/After Comparison (30 seconds)
 
 | Metric | Before | After |
-|--------|--------|-------|
+| --- | --- | --- |
 | Setup code per job | 8 lines | 1 line |
 | Total config lines | 120+ | 60 |
 | Change locations | Every job | One command |

@@ -85,6 +85,11 @@ module acr 'modules/container-registry.bicep' = {
   }
 }
 
+// Existing resource handle for role assignment scoping
+resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: acrName
+}
+
 // Container Apps Environment
 module containerAppEnv 'modules/container-app-env.bicep' = {
   name: 'containerAppEnv'
@@ -126,9 +131,10 @@ module containerApp 'modules/container-app.bicep' = {
   }
 }
 
+// Grant the container app managed identity pull rights on ACR
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: acr
-  name: guid(acr.outputs.id, containerApp.outputs.principalId, 'acrpull')
+  scope: acrResource
+  name: guid(subscription().id, resourceGroup().name, acrName, 'acrpull')
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
     principalId: containerApp.outputs.principalId

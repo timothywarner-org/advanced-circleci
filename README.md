@@ -3,9 +3,13 @@
 > CircleCI Advanced Configuration - Pluralsight Course Repository
 
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/timothywarner-org/advanced-circleci/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/timothywarner-org/advanced-circleci/tree/main)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-Image%20Repo-0db7ed?logo=docker&logoColor=white)](https://hub.docker.com/)
+[![Pluralsight](https://img.shields.io/badge/Pluralsight-Course%20Page-f15b2a)](https://www.pluralsight.com/)
 [![GitHub Actions](https://github.com/timothywarner-org/advanced-circleci/actions/workflows/comparison-build.yml/badge.svg)](https://github.com/timothywarner-org/advanced-circleci/actions/workflows/comparison-build.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-20-green.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+> Replace the Docker Hub and Pluralsight links with your published image repo and course URL when available.
 
 A RESTful API for managing Globomantics' robot fleet, built as a practical example for learning advanced CircleCI CI/CD patterns.
 
@@ -27,7 +31,7 @@ open http://localhost:3000
 ### What You'll See
 
 | URL | Description |
-|-----|-------------|
+| --- | --- |
 | `http://localhost:3000` | Robot Fleet Dashboard |
 | `http://localhost:3000/api-docs.html` | Interactive API Documentation |
 | `http://localhost:3000/api/health` | Health Check Endpoint |
@@ -39,7 +43,7 @@ This repository accompanies the Pluralsight course **CircleCI Advanced Configura
 ### What You'll Learn
 
 | Module | Topic | Key Concepts |
-|--------|-------|--------------|
+| --- | --- | --- |
 | 1 | Workflow Orchestration | Sequential/parallel jobs, fan-out/fan-in, filters, approvals |
 | 2 | Configuration Reuse | Pipeline parameters, job parameters, commands, executors |
 | 3 | Orbs & Integrations | Node.js orb, Slack notifications, Azure deployment |
@@ -158,7 +162,7 @@ See [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) for the complete deployment 
 ### Azure Resources Created
 
 | Resource | Purpose |
-|----------|---------|
+| --- | --- |
 | Container Registry | Docker image storage |
 | Container Apps Environment | Hosting environment |
 | Container App | The running API |
@@ -167,7 +171,7 @@ See [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) for the complete deployment 
 ## Documentation
 
 | Document | Description |
-|----------|-------------|
+| --- | --- |
 | [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Local setup and development guide |
 | [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) | Azure deployment and CI/CD setup |
 | [COURSE_OUTLINE.md](COURSE_OUTLINE.md) | Course structure and learning objectives |
@@ -176,7 +180,7 @@ See [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) for the complete deployment 
 ## Prerequisites
 
 | Tool | Version | Required For |
-|------|---------|--------------|
+| --- | --- | --- |
 | Node.js | 18+ | Running the app |
 | Docker | 20+ | Container builds |
 | Azure CLI | 2.50+ | Azure deployment |
@@ -192,6 +196,7 @@ code .
 ```
 
 Key extensions:
+
 - CircleCI (`circleci.circleci`)
 - YAML (`redhat.vscode-yaml`)
 - Azure Bicep (`ms-azuretools.vscode-bicep`)
@@ -207,8 +212,8 @@ Key extensions:
 ## Maintainer
 
 - **Author:** Tim Warner
-- **Email:** tim@techtrainertim.com
-- **Website:** https://TechTrainerTim.com
+- **Email:** <mailto:tim@techtrainertim.com>
+- **Website:** <https://TechTrainerTim.com>
 
 ## License
 
@@ -218,5 +223,5 @@ MIT License - See [LICENSE](./LICENSE) for details.
 
 **Course:** CircleCI Advanced Configuration
 **Platform:** Pluralsight
-**Email:** tim@techtrainertim.com
-**Website:** https://TechTrainerTim.com
+**Email:** <mailto:tim@techtrainertim.com>
+**Website:** <https://TechTrainerTim.com>
