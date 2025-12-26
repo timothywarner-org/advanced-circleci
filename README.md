@@ -118,7 +118,6 @@ advanced-circleci/
 ├── .circleci/
 │   ├── config.yml              # Production config
 │   └── configs/                # Progressive demo configs
-├── orb-source/                 # Custom Globomantics orb
 ├── infra/                      # Azure Bicep templates
 │   ├── main.bicep              # Main template
 │   ├── modules/                # Infrastructure modules
@@ -141,16 +140,6 @@ The `.circleci/configs/` directory contains configurations that build on each ot
 4. `04-approval-scheduled.yml` - Manual gates and schedules
 
 ### Module 2: Configuration Reuse
-
-1. `05-pipeline-parameters.yml` - Workflow control
-2. `06-job-parameters.yml` - Reusable job definitions
-3. `07-commands-reuse.yml` - Step abstractions
-
-### Module 3: Orbs & Integrations
-
-1. `08-orbs-intro.yml` - Node.js orb basics
-2. `09-slack-orb.yml` - Notifications
-3. `10-azure-orb.yml` - Cloud deployment
 
 ## Azure Deployment
 
@@ -228,3 +217,5 @@ MIT License - See [LICENSE](./LICENSE) for details.
 
 **Course:** CircleCI Advanced Configuration
 **Platform:** Pluralsight
+**Email:** tim@techtrainertim.com
+**Website:** https://TechTrainerTim.com
