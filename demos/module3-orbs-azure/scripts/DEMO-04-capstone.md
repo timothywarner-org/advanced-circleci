@@ -1,7 +1,9 @@
 # Demo 4: Capstone — Complete Globomantics Pipeline
+
 ## Module 3, Clip 6 (5 minutes)
 
 ### Overview
+
 Synthesize all three modules into the final production pipeline. Show the complete workflow graph and compare efficiency gains.
 
 ---
@@ -206,6 +208,7 @@ build ──────────────────┼── integratio
 ## Final Demonstration
 
 **ACTION:**
+
 1. Make a small code change
 2. Push to main branch
 3. Watch the complete pipeline execute
@@ -215,6 +218,7 @@ build ──────────────────┼── integratio
 ---
 
 ## Key Takeaways
+
 - Combine all three modules for maximum efficiency
 - Orbs + Parameters + Commands = Zero duplication
 - Fan-out testing with fan-in deployment
@@ -224,4 +228,5 @@ build ──────────────────┼── integratio
 ---
 
 ## Course Conclusion
+
 "You now have the skills to architect maintainable, scalable CI/CD pipelines for enterprise development teams. Go forth and eliminate that YAML duplication!"

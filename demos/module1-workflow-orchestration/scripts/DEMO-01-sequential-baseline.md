@@ -1,12 +1,15 @@
 # Demo 1: Building Sequential Dependencies with `requires`
+
 ## Module 1, Clip 2 (5 minutes)
 
 ### Overview
+
 In this demo, we'll build a three-stage workflow: build → test → deploy, demonstrating how the `requires` keyword creates job dependencies.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Open VS Code with CircleCI extension installed
 2. Have the GitHub repository open
 3. Have CircleCI dashboard open in browser (app.circleci.com)
@@ -17,6 +20,7 @@ In this demo, we'll build a three-stage workflow: build → test → deploy, dem
 ## Demo Script
 
 ### 1. Show the Problem (30 seconds)
+
 **TALKING POINT:** "Globomantics has a monolithic pipeline that runs jobs sequentially, but they're not enforcing dependencies properly. Let's fix that."
 
 Open `.circleci/configs/01-sequential-baseline.yml`
@@ -97,6 +101,7 @@ git push
 **ACTION:** Switch to CircleCI dashboard
 
 **SHOW:**
+
 - Workflow graph with dependency arrows
 - Jobs running in sequence
 - "Waiting" status on dependent jobs
@@ -106,6 +111,7 @@ git push
 **TALKING POINT:** "Watch what happens when the build fails..."
 
 **ACTION:** (If prepared) Show a failing build and point out:
+
 - Downstream jobs show "Not Run"
 - They're automatically skipped
 - No wasted build minutes
@@ -113,6 +119,7 @@ git push
 ---
 
 ## Key Takeaways
+
 - `requires` creates explicit job dependencies
 - Dependent jobs wait for upstream jobs to complete
 - Failed jobs cause downstream jobs to be skipped
@@ -121,4 +128,5 @@ git push
 ---
 
 ## Transition to Next Demo
+
 "Now that we have sequential execution, let's see how we can run multiple jobs in parallel to dramatically speed up our pipeline."

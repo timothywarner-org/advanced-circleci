@@ -1,12 +1,15 @@
 # Demo 1: Pipeline Parameters for Workflow Control
+
 ## Module 2, Clip 2 (5 minutes)
 
 ### Overview
+
 Introduce pipeline-level parameters that control workflow execution at trigger time. Show how to create boolean, string, and enum parameters.
 
 ---
 
 ## Pre-Demo Setup
+
 1. VS Code with CircleCI extension
 2. CircleCI dashboard open
 3. Terminal for API trigger example
@@ -110,6 +113,7 @@ workflows:
 ### 5. Trigger with Custom Parameters (30 seconds)
 
 **Via API:**
+
 ```bash
 curl -X POST \
   https://circleci.com/api/v2/project/github/ORG/REPO/pipeline \
@@ -130,6 +134,7 @@ curl -X POST \
 ---
 
 ## Key Takeaways
+
 - Pipeline parameters are set at trigger time
 - Four types: boolean, enum, string, integer
 - Accessed with `<< pipeline.parameters.name >>`
@@ -139,4 +144,5 @@ curl -X POST \
 ---
 
 ## Transition
+
 "Pipeline parameters control workflows. Now let's see how job parameters let us create reusable job definitions."

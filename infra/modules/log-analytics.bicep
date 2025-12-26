@@ -12,6 +12,9 @@ param location string
 @maxValue(730)
 param retentionDays int = 30
 
+@description('Tags to apply to the workspace')
+param tags object = {}
+
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: name
   location: location
@@ -20,15 +23,8 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
       name: 'PerGB2018'
     }
     retentionInDays: retentionDays
-    features: {
-      enableLogAccessUsingOnlyResourcePermissions: true
-    }
-    workspaceCapping: {
-      dailyQuotaGb: 1
-    }
-    publicNetworkAccessForIngestion: 'Enabled'
-    publicNetworkAccessForQuery: 'Enabled'
   }
+  tags: tags
 }
 
 output workspaceId string = logAnalytics.id

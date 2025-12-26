@@ -1,7 +1,9 @@
 # Demo 4: Parameters vs Environment Variables
+
 ## Module 2, Clip 4 (5 minutes)
 
 ### Overview
+
 Critical distinction: Parameters are resolved at CONFIG TIME (before jobs run), environment variables at RUNTIME (during job execution). Understanding this prevents subtle bugs.
 
 ---
@@ -142,6 +144,7 @@ jobs:
 ---
 
 ## Key Takeaways
+
 - Parameters: CONFIG TIME (before jobs)
 - Environment variables: RUNTIME (during jobs)
 - Parameters control pipeline structure
@@ -151,4 +154,5 @@ jobs:
 ---
 
 ## Module 2 Summary
+
 "We've covered the complete configuration reuse hierarchy: pipeline parameters for workflow control, job parameters for generalization, and commands for step reuse. You now have the tools to eliminate YAML duplication. Next, we'll take reuse to the ecosystem level with Orbs."

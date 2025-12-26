@@ -1,12 +1,15 @@
 # Demo 2: Job Parameters for Reusable Job Definitions
+
 ## Module 2, Clip 3 (5 minutes)
 
 ### Overview
+
 Transform three nearly-identical deploy jobs into one parameterized job. Show the before/after comparison with line count reduction.
 
 ---
 
 ## Pre-Demo Setup
+
 1. Have "before" config with duplicate jobs ready
 2. Line counter visible (VS Code shows lines in status bar)
 
@@ -174,6 +177,7 @@ git push
 ---
 
 ## Key Takeaways
+
 - Job parameters go inside the `parameters:` block within a job
 - Reference with `<< parameters.name >>`
 - `name:` in workflow gives unique job instance names
@@ -183,4 +187,5 @@ git push
 ---
 
 ## Transition
+
 "Job parameters handle job-level reuse. But what about reusing step sequences? That's where commands come in."
