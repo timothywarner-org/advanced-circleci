@@ -3,7 +3,7 @@
  * Centralized error handling for the API
  */
 
-function errorHandler(err, req, res, next) {
+function errorHandler(err, req, res, _next) {
   // Log error for debugging
   console.error(`[ERROR] ${new Date().toISOString()}:`, err.message);
 

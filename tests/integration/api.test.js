@@ -8,12 +8,19 @@ const app = require('../../src/index');
 
 describe('API Integration Tests', () => {
   describe('Root Endpoint', () => {
-    it('GET / should return API information', async () => {
-      const response = await request(app).get('/');
+    it('GET /api should return API information', async () => {
+      const response = await request(app).get('/api');
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('service', 'Globomantics Robot Fleet API');
       expect(response.body).toHaveProperty('endpoints');
+    });
+
+    it('GET / should serve the frontend dashboard', async () => {
+      const response = await request(app).get('/');
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toMatch(/text\/html/);
     });
   });
 

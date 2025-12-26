@@ -7,6 +7,7 @@
 
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -20,8 +21,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ENV = process.env.NODE_ENV || 'development';
 
-// Security middleware
-app.use(helmet());
+// Security middleware with CSP configured for our frontend
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"]
+      }
+    }
+  })
+);
 app.use(cors());
 
 // Logging
@@ -31,18 +45,23 @@ app.use(morgan(ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// API Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/robots', robotRoutes);
 app.use('/api/metrics', metricsRoutes);
 
-// Root endpoint
-app.get('/', (req, res) => {
+// Root endpoint - serves the frontend dashboard
+// Static files middleware handles index.html automatically
+// This fallback provides API info for programmatic access
+app.get('/api', (req, res) => {
   res.json({
     service: 'Globomantics Robot Fleet API',
     version: process.env.npm_package_version || '1.0.0',
     environment: ENV,
-    documentation: '/api/health',
+    documentation: '/api-docs.html',
     endpoints: {
       health: '/api/health',
       robots: '/api/robots',

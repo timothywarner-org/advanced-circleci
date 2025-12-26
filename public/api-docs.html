@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Globomantics Robot Fleet</title>
+    <link rel="icon" type="image/png" href="images/globomantics-logo-bug-darkblue.png">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* API Docs Specific Styles */
+        .api-docs-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .api-hero {
+            background: linear-gradient(135deg, var(--globo-dark) 0%, var(--globo-darker) 100%);
+            color: white;
+            padding: var(--space-xxl) var(--space-xl);
+            margin: calc(var(--space-xl) * -1);
+            margin-bottom: var(--space-xl);
+        }
+
+        .api-hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: var(--space-md);
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+
+        .api-hero p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            max-width: 600px;
+        }
+
+        .api-hero .base-url {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            background: rgba(255, 255, 255, 0.1);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            font-family: var(--font-mono);
+            margin-top: var(--space-lg);
+        }
+
+        .api-hero .base-url code {
+            color: var(--globo-accent);
+        }
+
+        .api-section {
+            margin-bottom: var(--space-xxl);
+        }
+
+        .api-section-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+            padding-bottom: var(--space-md);
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .api-section-header h2 {
+            font-size: 1.5rem;
+            color: var(--globo-dark);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .api-section-header i {
+            color: var(--globo-primary);
+        }
+
+        .endpoint-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            margin-bottom: var(--space-lg);
+            overflow: hidden;
+            border: 1px solid var(--gray-200);
+        }
+
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md) var(--space-lg);
+            background: var(--gray-50);
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+
+        .endpoint-header:hover {
+            background: var(--gray-100);
+        }
+
+        .endpoint-header .method {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .endpoint-header .path {
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            color: var(--gray-900);
+            flex: 1;
+        }
+
+        .endpoint-header .description {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        .endpoint-header .toggle-icon {
+            color: var(--gray-500);
+            transition: transform var(--transition-fast);
+        }
+
+        .endpoint-card.expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .endpoint-body {
+            display: none;
+            padding: var(--space-lg);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .endpoint-card.expanded .endpoint-body {
+            display: block;
+        }
+
+        .endpoint-section {
+            margin-bottom: var(--space-lg);
+        }
+
+        .endpoint-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .endpoint-section h4 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--gray-700);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: var(--space-sm);
+        }
+
+        .params-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .params-table th,
+        .params-table td {
+            padding: var(--space-sm) var(--space-md);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .params-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .param-name {
+            font-family: var(--font-mono);
+            color: var(--globo-primary);
+            font-weight: 500;
+        }
+
+        .param-type {
+            color: var(--gray-600);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .param-required {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .param-required.yes {
+            background: var(--status-danger-bg);
+            color: var(--status-danger);
+        }
+
+        .param-required.no {
+            background: var(--gray-200);
+            color: var(--gray-600);
+        }
+
+        .code-block {
+            background: var(--globo-darker);
+            color: #e0e0e0;
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .code-block .copy-btn {
+            position: absolute;
+            top: var(--space-sm);
+            right: var(--space-sm);
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background var(--transition-fast);
+        }
+
+        .code-block .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .code-block pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        .json-key { color: #9cdcfe; }
+        .json-string { color: #ce9178; }
+        .json-number { color: #b5cea8; }
+        .json-boolean { color: #569cd6; }
+
+        .try-it-section {
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            padding: var(--space-lg);
+            margin-top: var(--space-md);
+        }
+
+        .try-it-section h4 {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-md);
+        }
+
+        .try-it-section h4 i {
+            color: var(--globo-accent);
+        }
+
+        .try-it-form {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .try-it-input {
+            display: flex;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+        }
+
+        .try-it-input .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .try-it-input .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: var(--space-xs);
+            color: var(--gray-700);
+        }
+
+        .try-it-input .form-group input,
+        .try-it-input .form-group select,
+        .try-it-input .form-group textarea {
+            width: 100%;
+            padding: var(--space-sm);
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+
+        .try-it-actions {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        .response-area {
+            margin-top: var(--space-md);
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-sm);
+        }
+
+        .response-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .status-code {
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        .status-code.success {
+            background: var(--status-success-bg);
+            color: var(--status-success);
+        }
+
+        .status-code.error {
+            background: var(--status-danger-bg);
+            color: var(--status-danger);
+        }
+
+        .response-time {
+            font-size: 0.8rem;
+            color: var(--gray-600);
+        }
+
+        /* Quick Navigation */
+        .quick-nav {
+            position: sticky;
+            top: 80px;
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+
+        .quick-nav h3 {
+            font-size: 1rem;
+            margin-bottom: var(--space-md);
+            color: var(--gray-700);
+        }
+
+        .quick-nav-list {
+            list-style: none;
+        }
+
+        .quick-nav-list li {
+            margin-bottom: var(--space-xs);
+        }
+
+        .quick-nav-list a {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-xs) var(--space-sm);
+            color: var(--gray-700);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.875rem;
+            transition: all var(--transition-fast);
+        }
+
+        .quick-nav-list a:hover {
+            background: var(--gray-100);
+            color: var(--globo-primary);
+        }
+
+        .quick-nav-list .method {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <a href="/">
+                    <img src="images/Globo-Logo-white.svg" alt="Globomantics" class="logo">
+                </a>
+                <span class="tagline">ROBOT FLEET COMMAND CENTER</span>
+            </div>
+            <nav class="main-nav">
+                <a href="/" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="/api-docs.html" class="nav-link active"><i class="fas fa-book"></i> API Docs</a>
+                <a href="/api/health" class="nav-link" target="_blank"><i class="fas fa-heartbeat"></i> Health</a>
+                <a href="/api/metrics" class="nav-link" target="_blank"><i class="fas fa-chart-line"></i> Metrics</a>
+            </nav>
+            <div class="header-actions">
+                <div class="status-indicator online">
+                    <span class="pulse"></span>
+                    <span>System Online</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content api-docs-content">
+        <!-- Hero Section -->
+        <div class="api-hero">
+            <h1><i class="fas fa-book-open"></i> Robot Fleet API Documentation</h1>
+            <p>Complete REST API reference for managing the Globomantics robot fleet. This API provides endpoints for robot CRUD operations, health monitoring, and fleet metrics.</p>
+            <div class="base-url">
+                <i class="fas fa-link"></i>
+                <span>Base URL:</span>
+                <code id="baseUrl">http://localhost:3000</code>
+                <button onclick="copyBaseUrl()" title="Copy URL" style="background: none; border: none; color: var(--globo-accent); cursor: pointer;">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Navigation -->
+        <nav class="quick-nav">
+            <h3><i class="fas fa-compass"></i> Quick Navigation</h3>
+            <ul class="quick-nav-list">
+                <li><a href="#health"><span class="method get">GET</span> /api/health - Health Check</a></li>
+                <li><a href="#get-robots"><span class="method get">GET</span> /api/robots - List Robots</a></li>
+                <li><a href="#get-robot"><span class="method get">GET</span> /api/robots/:id - Get Robot</a></li>
+                <li><a href="#create-robot"><span class="method post">POST</span> /api/robots - Create Robot</a></li>
+                <li><a href="#update-robot"><span class="method put">PUT</span> /api/robots/:id - Update Robot</a></li>
+                <li><a href="#delete-robot"><span class="method delete">DELETE</span> /api/robots/:id - Delete Robot</a></li>
+                <li><a href="#maintenance"><span class="method post">POST</span> /api/robots/:id/maintenance - Schedule Maintenance</a></li>
+                <li><a href="#metrics"><span class="method get">GET</span> /api/metrics - Fleet Metrics</a></li>
+            </ul>
+        </nav>
+
+        <!-- Health Endpoints -->
+        <section class="api-section" id="health-section">
+            <div class="api-section-header">
+                <h2><i class="fas fa-heartbeat"></i> Health Endpoints</h2>
+            </div>
+
+            <div class="endpoint-card" id="health">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method get">GET</span>
+                    <span class="path">/api/health</span>
+                    <span class="description">Check API health status</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Description</h4>
+                        <p>Returns the current health status of the API, including version information, environment, and uptime. Use this endpoint for health checks and monitoring.</p>
+                    </div>
+
+                    <div class="endpoint-section">
+                        <h4>Response Example</h4>
+                        <div class="code-block">
+                            <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+                            <pre>{
+  <span class="json-key">"status"</span>: <span class="json-string">"healthy"</span>,
+  <span class="json-key">"version"</span>: <span class="json-string">"1.0.0"</span>,
+  <span class="json-key">"environment"</span>: <span class="json-string">"development"</span>,
+  <span class="json-key">"uptime"</span>: <span class="json-number">3600</span>,
+  <span class="json-key">"timestamp"</span>: <span class="json-string">"2024-01-15T10:30:00Z"</span>
+}</pre>
+                        </div>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <button class="btn btn-primary" onclick="tryEndpoint('GET', '/api/health', this)">
+                            <i class="fas fa-paper-plane"></i> Send Request
+                        </button>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Robot Endpoints -->
+        <section class="api-section" id="robots-section">
+            <div class="api-section-header">
+                <h2><i class="fas fa-robot"></i> Robot Endpoints</h2>
+            </div>
+
+            <!-- GET /api/robots -->
+            <div class="endpoint-card" id="get-robots">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method get">GET</span>
+                    <span class="path">/api/robots</span>
+                    <span class="description">List all robots in the fleet</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Description</h4>
+                        <p>Retrieves a list of all robots in the fleet. Supports optional filtering by status and location.</p>
+                    </div>
+
+                    <div class="endpoint-section">
+                        <h4>Query Parameters</h4>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">status</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required no">No</span></td>
+                                    <td>Filter by status: active, inactive, maintenance, offline</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">location</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required no">No</span></td>
+                                    <td>Filter by location (e.g., factory-floor-a)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="endpoint-section">
+                        <h4>Response Example</h4>
+                        <div class="code-block">
+                            <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+                            <pre>{
+  <span class="json-key">"success"</span>: <span class="json-boolean">true</span>,
+  <span class="json-key">"count"</span>: <span class="json-number">5</span>,
+  <span class="json-key">"data"</span>: [
+    {
+      <span class="json-key">"id"</span>: <span class="json-string">"rb-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-string">"Atlas Prime"</span>,
+      <span class="json-key">"type"</span>: <span class="json-string">"assembly"</span>,
+      <span class="json-key">"status"</span>: <span class="json-string">"active"</span>,
+      <span class="json-key">"location"</span>: <span class="json-string">"factory-floor-a"</span>,
+      <span class="json-key">"batteryLevel"</span>: <span class="json-number">87</span>,
+      <span class="json-key">"lastMaintenance"</span>: <span class="json-string">"2024-01-10T14:30:00Z"</span>
+    }
+  ]
+}</pre>
+                        </div>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <div class="try-it-form">
+                            <div class="try-it-input">
+                                <div class="form-group">
+                                    <label>status (optional)</label>
+                                    <select id="try-robots-status">
+                                        <option value="">All</option>
+                                        <option value="active">active</option>
+                                        <option value="inactive">inactive</option>
+                                        <option value="maintenance">maintenance</option>
+                                        <option value="offline">offline</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>location (optional)</label>
+                                    <input type="text" id="try-robots-location" placeholder="e.g., factory-floor-a">
+                                </div>
+                            </div>
+                            <div class="try-it-actions">
+                                <button class="btn btn-primary" onclick="tryGetRobots(this)">
+                                    <i class="fas fa-paper-plane"></i> Send Request
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GET /api/robots/:id -->
+            <div class="endpoint-card" id="get-robot">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method get">GET</span>
+                    <span class="path">/api/robots/:id</span>
+                    <span class="description">Get a specific robot by ID</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Path Parameters</h4>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">id</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required yes">Yes</span></td>
+                                    <td>Unique robot identifier (e.g., rb-001)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <div class="try-it-form">
+                            <div class="try-it-input">
+                                <div class="form-group">
+                                    <label>Robot ID</label>
+                                    <input type="text" id="try-get-robot-id" placeholder="rb-001" value="rb-001">
+                                </div>
+                            </div>
+                            <div class="try-it-actions">
+                                <button class="btn btn-primary" onclick="tryGetRobotById(this)">
+                                    <i class="fas fa-paper-plane"></i> Send Request
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- POST /api/robots -->
+            <div class="endpoint-card" id="create-robot">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method post">POST</span>
+                    <span class="path">/api/robots</span>
+                    <span class="description">Create a new robot</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Request Body</h4>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">name</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required yes">Yes</span></td>
+                                    <td>Robot display name</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">type</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required yes">Yes</span></td>
+                                    <td>Robot type: assembly, welding, quality-control, logistics</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">location</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required no">No</span></td>
+                                    <td>Initial location assignment</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="endpoint-section">
+                        <h4>Request Example</h4>
+                        <div class="code-block">
+                            <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+                            <pre>{
+  <span class="json-key">"name"</span>: <span class="json-string">"Titan X9"</span>,
+  <span class="json-key">"type"</span>: <span class="json-string">"assembly"</span>,
+  <span class="json-key">"location"</span>: <span class="json-string">"factory-floor-a"</span>
+}</pre>
+                        </div>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <div class="try-it-form">
+                            <div class="try-it-input">
+                                <div class="form-group">
+                                    <label>Name</label>
+                                    <input type="text" id="try-create-name" placeholder="Robot name" value="Test Robot">
+                                </div>
+                                <div class="form-group">
+                                    <label>Type</label>
+                                    <select id="try-create-type">
+                                        <option value="assembly">assembly</option>
+                                        <option value="welding">welding</option>
+                                        <option value="quality-control">quality-control</option>
+                                        <option value="logistics">logistics</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Location (optional)</label>
+                                    <input type="text" id="try-create-location" placeholder="factory-floor-a">
+                                </div>
+                            </div>
+                            <div class="try-it-actions">
+                                <button class="btn btn-primary" onclick="tryCreateRobot(this)">
+                                    <i class="fas fa-paper-plane"></i> Send Request
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PUT /api/robots/:id -->
+            <div class="endpoint-card" id="update-robot">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method put">PUT</span>
+                    <span class="path">/api/robots/:id</span>
+                    <span class="description">Update robot status/location</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Updatable Fields</h4>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">name</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td>Robot display name</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">status</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td>active, inactive, maintenance, offline</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">location</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td>Current location assignment</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">batteryLevel</span></td>
+                                    <td><span class="param-type">number</span></td>
+                                    <td>Battery level (0-100)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <div class="try-it-form">
+                            <div class="try-it-input">
+                                <div class="form-group">
+                                    <label>Robot ID</label>
+                                    <input type="text" id="try-update-id" placeholder="rb-001" value="rb-001">
+                                </div>
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <select id="try-update-status">
+                                        <option value="active">active</option>
+                                        <option value="inactive">inactive</option>
+                                        <option value="maintenance">maintenance</option>
+                                        <option value="offline">offline</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Battery Level</label>
+                                    <input type="number" id="try-update-battery" placeholder="85" min="0" max="100" value="85">
+                                </div>
+                            </div>
+                            <div class="try-it-actions">
+                                <button class="btn btn-primary" onclick="tryUpdateRobot(this)">
+                                    <i class="fas fa-paper-plane"></i> Send Request
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DELETE /api/robots/:id -->
+            <div class="endpoint-card" id="delete-robot">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method delete">DELETE</span>
+                    <span class="path">/api/robots/:id</span>
+                    <span class="description">Remove a robot from the fleet</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Description</h4>
+                        <p>Permanently removes a robot from the fleet. This action cannot be undone.</p>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <div class="try-it-form">
+                            <div class="try-it-input">
+                                <div class="form-group">
+                                    <label>Robot ID</label>
+                                    <input type="text" id="try-delete-id" placeholder="rb-001">
+                                </div>
+                            </div>
+                            <div class="try-it-actions">
+                                <button class="btn btn-primary" style="background: var(--status-danger);" onclick="tryDeleteRobot(this)">
+                                    <i class="fas fa-trash"></i> Delete Robot
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- POST /api/robots/:id/maintenance -->
+            <div class="endpoint-card" id="maintenance">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method post">POST</span>
+                    <span class="path">/api/robots/:id/maintenance</span>
+                    <span class="description">Schedule maintenance for a robot</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Request Body</h4>
+                        <table class="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Type</th>
+                                    <th>Required</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="param-name">type</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required no">No</span></td>
+                                    <td>Maintenance type (defaults to "routine")</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="param-name">scheduledDate</span></td>
+                                    <td><span class="param-type">string</span></td>
+                                    <td><span class="param-required no">No</span></td>
+                                    <td>ISO 8601 date string</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <div class="try-it-form">
+                            <div class="try-it-input">
+                                <div class="form-group">
+                                    <label>Robot ID</label>
+                                    <input type="text" id="try-maintenance-id" placeholder="rb-001" value="rb-001">
+                                </div>
+                                <div class="form-group">
+                                    <label>Type</label>
+                                    <select id="try-maintenance-type">
+                                        <option value="routine">Routine</option>
+                                        <option value="emergency">Emergency</option>
+                                        <option value="preventive">Preventive</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="try-it-actions">
+                                <button class="btn btn-primary" style="background: var(--status-warning);" onclick="tryScheduleMaintenance(this)">
+                                    <i class="fas fa-tools"></i> Schedule Maintenance
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Metrics Endpoints -->
+        <section class="api-section" id="metrics-section">
+            <div class="api-section-header">
+                <h2><i class="fas fa-chart-bar"></i> Metrics Endpoints</h2>
+            </div>
+
+            <div class="endpoint-card" id="metrics">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method get">GET</span>
+                    <span class="path">/api/metrics</span>
+                    <span class="description">Get fleet-wide operational metrics</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="endpoint-body">
+                    <div class="endpoint-section">
+                        <h4>Description</h4>
+                        <p>Returns comprehensive metrics about the robot fleet including total counts, status distribution, and operational statistics.</p>
+                    </div>
+
+                    <div class="endpoint-section">
+                        <h4>Response Example</h4>
+                        <div class="code-block">
+                            <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+                            <pre>{
+  <span class="json-key">"totalRobots"</span>: <span class="json-number">12</span>,
+  <span class="json-key">"statusBreakdown"</span>: {
+    <span class="json-key">"active"</span>: <span class="json-number">8</span>,
+    <span class="json-key">"maintenance"</span>: <span class="json-number">2</span>,
+    <span class="json-key">"offline"</span>: <span class="json-number">1</span>,
+    <span class="json-key">"inactive"</span>: <span class="json-number">1</span>
+  },
+  <span class="json-key">"averageBatteryLevel"</span>: <span class="json-number">76.5</span>,
+  <span class="json-key">"locationDistribution"</span>: {
+    <span class="json-key">"factory-floor-a"</span>: <span class="json-number">4</span>,
+    <span class="json-key">"factory-floor-b"</span>: <span class="json-number">3</span>,
+    <span class="json-key">"warehouse-1"</span>: <span class="json-number">3</span>,
+    <span class="json-key">"maintenance-bay"</span>: <span class="json-number">2</span>
+  }
+}</pre>
+                        </div>
+                    </div>
+
+                    <div class="try-it-section">
+                        <h4><i class="fas fa-play-circle"></i> Try It</h4>
+                        <button class="btn btn-primary" onclick="tryEndpoint('GET', '/api/metrics', this)">
+                            <i class="fas fa-paper-plane"></i> Send Request
+                        </button>
+                        <div class="response-area" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <img src="images/Globo-Logo-white-footer.svg" alt="Globomantics">
+            </div>
+            <div class="footer-content">
+                <p>Globomantics Robot Fleet API - Advanced CircleCI Configuration Course</p>
+                <p class="footer-disclaimer">This site is created for demonstrative purposes only.</p>
+            </div>
+            <div class="footer-links">
+                <a href="/">Dashboard</a>
+                <a href="/api/health">Health Check</a>
+                <a href="https://github.com/timothywarner-org/advanced-circleci" target="_blank">
+                    <i class="fab fa-github"></i> Source Code
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Set base URL
+        document.getElementById('baseUrl').textContent = window.location.origin;
+
+        // Toggle endpoint expansion
+        function toggleEndpoint(header) {
+            const card = header.closest('.endpoint-card');
+            card.classList.toggle('expanded');
+        }
+
+        // Copy code block
+        function copyCode(btn) {
+            const pre = btn.closest('.code-block').querySelector('pre');
+            navigator.clipboard.writeText(pre.textContent);
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000);
+        }
+
+        // Copy base URL
+        function copyBaseUrl() {
+            navigator.clipboard.writeText(window.location.origin);
+        }
+
+        // Generic API request
+        async function tryEndpoint(method, path, btn) {
+            const responseArea = btn.closest('.try-it-section').querySelector('.response-area');
+            responseArea.style.display = 'block';
+            responseArea.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+            const startTime = Date.now();
+            try {
+                const response = await fetch(path, { method });
+                const data = await response.json();
+                const duration = Date.now() - startTime;
+
+                renderResponse(responseArea, response.status, data, duration);
+            } catch (error) {
+                responseArea.innerHTML = `<div style="color: var(--status-danger);">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Get robots with filters
+        async function tryGetRobots(btn) {
+            const status = document.getElementById('try-robots-status').value;
+            const location = document.getElementById('try-robots-location').value;
+
+            let path = '/api/robots';
+            const params = [];
+            if (status) params.push(`status=${status}`);
+            if (location) params.push(`location=${location}`);
+            if (params.length) path += '?' + params.join('&');
+
+            tryEndpoint('GET', path, btn);
+        }
+
+        // Get robot by ID
+        async function tryGetRobotById(btn) {
+            const id = document.getElementById('try-get-robot-id').value;
+            if (!id) return alert('Please enter a robot ID');
+            tryEndpoint('GET', `/api/robots/${id}`, btn);
+        }
+
+        // Create robot
+        async function tryCreateRobot(btn) {
+            const name = document.getElementById('try-create-name').value;
+            const type = document.getElementById('try-create-type').value;
+            const location = document.getElementById('try-create-location').value;
+
+            if (!name || !type) return alert('Name and type are required');
+
+            const responseArea = btn.closest('.try-it-section').querySelector('.response-area');
+            responseArea.style.display = 'block';
+            responseArea.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+            const startTime = Date.now();
+            try {
+                const response = await fetch('/api/robots', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, type, location: location || 'unassigned' })
+                });
+                const data = await response.json();
+                const duration = Date.now() - startTime;
+                renderResponse(responseArea, response.status, data, duration);
+            } catch (error) {
+                responseArea.innerHTML = `<div style="color: var(--status-danger);">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Update robot
+        async function tryUpdateRobot(btn) {
+            const id = document.getElementById('try-update-id').value;
+            const status = document.getElementById('try-update-status').value;
+            const battery = document.getElementById('try-update-battery').value;
+
+            if (!id) return alert('Please enter a robot ID');
+
+            const responseArea = btn.closest('.try-it-section').querySelector('.response-area');
+            responseArea.style.display = 'block';
+            responseArea.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+            const startTime = Date.now();
+            try {
+                const body = { status };
+                if (battery) body.batteryLevel = parseInt(battery);
+
+                const response = await fetch(`/api/robots/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                const duration = Date.now() - startTime;
+                renderResponse(responseArea, response.status, data, duration);
+            } catch (error) {
+                responseArea.innerHTML = `<div style="color: var(--status-danger);">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Delete robot
+        async function tryDeleteRobot(btn) {
+            const id = document.getElementById('try-delete-id').value;
+            if (!id) return alert('Please enter a robot ID');
+            if (!confirm(`Are you sure you want to delete robot ${id}?`)) return;
+
+            tryEndpoint('DELETE', `/api/robots/${id}`, btn);
+        }
+
+        // Schedule maintenance
+        async function tryScheduleMaintenance(btn) {
+            const id = document.getElementById('try-maintenance-id').value;
+            const type = document.getElementById('try-maintenance-type').value;
+
+            if (!id) return alert('Please enter a robot ID');
+
+            const responseArea = btn.closest('.try-it-section').querySelector('.response-area');
+            responseArea.style.display = 'block';
+            responseArea.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+            const startTime = Date.now();
+            try {
+                const response = await fetch(`/api/robots/${id}/maintenance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, scheduledDate: new Date().toISOString() })
+                });
+                const data = await response.json();
+                const duration = Date.now() - startTime;
+                renderResponse(responseArea, response.status, data, duration);
+            } catch (error) {
+                responseArea.innerHTML = `<div style="color: var(--status-danger);">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Render API response
+        function renderResponse(container, status, data, duration) {
+            const isSuccess = status >= 200 && status < 300;
+            container.innerHTML = `
+                <div class="response-header">
+                    <div class="response-status">
+                        <span class="status-code ${isSuccess ? 'success' : 'error'}">${status}</span>
+                        <span>${isSuccess ? 'OK' : 'Error'}</span>
+                    </div>
+                    <span class="response-time">${duration}ms</span>
+                </div>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i></button>
+                    <pre>${syntaxHighlight(JSON.stringify(data, null, 2))}</pre>
+                </div>
+            `;
+        }
+
+        // Syntax highlight JSON
+        function syntaxHighlight(json) {
+            return json
+                .replace(/(".*?")\s*:/g, '<span class="json-key">$1</span>:')
+                .replace(/:\s*(".*?")/g, ': <span class="json-string">$1</span>')
+                .replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+                .replace(/:\s*(true|false|null)/g, ': <span class="json-boolean">$1</span>');
+        }
+    </script>
+</body>
+</html>
