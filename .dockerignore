@@ -5,6 +5,7 @@ npm-debug.log
 # Build outputs
 dist
 coverage
+test-results
 
 # IDE and editor files
 .vscode
@@ -19,6 +20,7 @@ coverage
 # Documentation
 docs
 *.md
+!README.md
 
 # Tests
 tests
@@ -42,3 +44,12 @@ infra
 # OS files
 .DS_Store
 Thumbs.db
+
+# Brand assets source (already copied to public)
+brand-assets
+
+# ESLint config
+eslint.config.js
+
+# Makefile (not needed in container)
+Makefile
