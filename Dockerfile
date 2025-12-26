@@ -8,11 +8,14 @@ FROM node:20-alpine AS dependencies
 
 WORKDIR /app
 
+# Ensure production dependency resolution and caching align with runtime
+ENV NODE_ENV=production
+
 # Copy package files first for better layer caching
 COPY package.json package-lock.json* ./
 
 # Install production dependencies only
-RUN npm ci --only=production --ignore-scripts && \
+RUN npm ci --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # =============================================================================

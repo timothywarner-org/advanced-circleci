@@ -7,6 +7,7 @@ set -e
 ENVIRONMENT=${1:-staging}
 RESOURCE_GROUP="globomantics-robots-${ENVIRONMENT}"
 LOCATION="eastus"
+DEPLOYMENT_NAME="main"
 
 echo "=========================================="
 echo "Globomantics Robot API - Azure Deployment"
@@ -39,6 +40,7 @@ az group create \
 # Deploy Bicep template
 echo "Deploying infrastructure..."
 az deployment group create \
+    --name "$DEPLOYMENT_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --template-file main.bicep \
     --parameters "environments/${ENVIRONMENT}.bicepparam" \
@@ -49,7 +51,7 @@ echo ""
 echo "Deployment complete! Getting outputs..."
 OUTPUTS=$(az deployment group show \
     --resource-group "$RESOURCE_GROUP" \
-    --name main \
+    --name "$DEPLOYMENT_NAME" \
     --query properties.outputs \
     --output json)
 

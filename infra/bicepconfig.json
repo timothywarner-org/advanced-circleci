@@ -1,0 +1,19 @@
+{
+  "moduleAliases": {
+    "br": {
+      "public": {
+        "registry": "mcr.microsoft.com",
+        "modulePath": "bicep"
+      }
+    }
+  },
+  "analyzers": {
+    "core": {
+      "enabled": true
+    }
+  },
+  "format": {
+    "indentSize": 2,
+    "insertFinalNewline": true
+  }
+}

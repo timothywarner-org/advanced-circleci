@@ -20,9 +20,30 @@ param containerImage string = 'mcr.microsoft.com/azuredocs/containerapps-hellowo
 param replicaCount int = 1
 
 @description('Container CPU cores')
+@allowed([
+  '0.25'
+  '0.5'
+  '0.75'
+  '1'
+  '1.25'
+  '1.5'
+  '2'
+  '3'
+  '4'
+])
 param cpuCores string = '0.25'
 
 @description('Container memory')
+@allowed([
+  '0.5Gi'
+  '1Gi'
+  '1.5Gi'
+  '2Gi'
+  '3Gi'
+  '4Gi'
+  '8Gi'
+  '16Gi'
+])
 param memory string = '0.5Gi'
 
 @description('Tags applied to all resources')
