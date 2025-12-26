@@ -1,93 +1,127 @@
-# Module 3 - Slack Notifications Orb
-# Demo: Clip 3 - Slack Notifications Orb — Real-World Integration
-# Production-ready monitoring in 10 lines vs 50+ lines of custom code
+# ============================================================================
+# MODULE 3, DEMO 2: Slack Notifications Orb
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Integrate Slack notifications into your CI/CD pipeline using the official
+#   Slack orb to keep your team informed of build and deployment status.
+#
+# KEY CONCEPTS:
+#   - CircleCI Contexts for secure secret management
+#   - Slack Block Kit for rich message formatting
+#   - Event-based notifications (pass, fail, always)
+#   - Custom message templates with environment variables
+#
+# WHY USE THE SLACK ORB?
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  WITHOUT SLACK ORB (50+ lines of custom code):                      │
+#   │                                                                      │
+#   │  - run:                                                              │
+#   │      name: Notify Slack                                              │
+#   │      command: |                                                      │
+#   │        curl -X POST $SLACK_WEBHOOK \                                 │
+#   │          -H 'Content-type: application/json' \                       │
+#   │          -d '{                                                       │
+#   │            "blocks": [                                               │
+#   │              { "type": "header", ... },                              │
+#   │              { "type": "section", ... }                              │
+#   │            ]                                                         │
+#   │          }'                                                          │
+#   │      when: on_success                                                │
+#   │  - run:                                                              │
+#   │      name: Notify Slack on Failure                                   │
+#   │      command: (similar code for failure)                             │
+#   │      when: on_fail                                                   │
+#   └─────────────────────────────────────────────────────────────────────┘
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │  WITH SLACK ORB (10 lines):                                          │
+#   │                                                                      │
+#   │  - slack/notify:                                                     │
+#   │      event: pass                                                     │
+#   │      template: success_tagged_deploy_1                               │
+#   │  - slack/notify:                                                     │
+#   │      event: fail                                                     │
+#   │      template: basic_fail_1                                          │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# NOTIFICATION TYPES:
+#   ┌─────────────────┬────────────────────────────────────────────────────┐
+#   │ Event           │ When it triggers                                   │
+#   ├─────────────────┼────────────────────────────────────────────────────┤
+#   │ pass            │ Job succeeds                                       │
+#   │ fail            │ Job fails                                          │
+#   │ always          │ Always, regardless of status                       │
+#   │ on_hold         │ When workflow is waiting for approval              │
+#   └─────────────────┴────────────────────────────────────────────────────┘
+#
+# WHAT TO OBSERVE IN CIRCLECI UI:
+#   1. Slack steps appear in job timeline
+#   2. Context secrets are masked in logs
+#   3. Failed notifications show error details
+#   4. Check Slack channel for formatted messages
+#
+# ============================================================================
 
 version: 2.1
 
+# ============================================================================
+# ORBS
+# ============================================================================
 orbs:
   node: circleci/node@5.2.0
-  # Slack orb for notifications
-  # Requires SLACK_WEBHOOK environment variable in CircleCI Context
+  # Slack orb for rich notifications
+  # https://circleci.com/developer/orbs/orb/circleci/slack
   slack: circleci/slack@4.13.3
 
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # BUILD JOB - Standard build with orb
+  # --------------------------------------------------------------------------
   build:
-    executor: node/default
+    executor:
+      name: node/default
+      tag: "20"
     steps:
       - checkout
       - node/install-packages
-      - run: npm run build
-
-  test:
-    executor: node/default
-    steps:
-      - checkout
-      - node/install-packages
-      - run: npm test
-
-  deploy:
-    executor: node/default
-    steps:
-      - checkout
       - run:
-          name: Deploy application
-          command: echo "Deploying to production..."
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - package.json
 
-      # SUCCESS notification using Slack orb
-      - slack/notify:
-          channel: deployments
-          event: pass
-          custom: |
-            {
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "✅ Deployment Successful",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Project:*\nGlobomantics Robot API"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Environment:*\nProduction"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Branch:*\n${CIRCLE_BRANCH}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Commit:*\n${CIRCLE_SHA1:0:7}"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "View Build"
-                      },
-                      "url": "${CIRCLE_BUILD_URL}"
-                    }
-                  ]
-                }
-              ]
-            }
+  # --------------------------------------------------------------------------
+  # TEST JOB - With failure notification
+  # --------------------------------------------------------------------------
+  test:
+    executor:
+      name: node/default
+      tag: "20"
+    steps:
+      - checkout
+      - node/install-packages
+      - run:
+          name: Run tests
+          command: npm test
+      - store_test_results:
+          path: test-results
 
-      # FAILURE notification - different message on failure
+      # ════════════════════════════════════════════════════════════════════
+      # FAILURE NOTIFICATION
+      # Only sends if the job fails (event: fail)
+      # ════════════════════════════════════════════════════════════════════
       - slack/notify:
-          channel: deployments
+          channel: ci-alerts
           event: fail
           custom: |
             {
@@ -96,7 +130,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "❌ Deployment Failed",
+                    "text": "Test Suite Failed",
                     "emoji": true
                   }
                 },
@@ -104,7 +138,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "The deployment to *Production* has failed. Please investigate immediately."
+                    "text": "Tests failed in *Globomantics Robot API*. Please investigate."
                   }
                 },
                 {
@@ -137,26 +171,199 @@ jobs:
               ]
             }
 
+  # --------------------------------------------------------------------------
+  # DEPLOY JOB - With success and failure notifications
+  # --------------------------------------------------------------------------
+  deploy:
+    executor:
+      name: node/default
+      tag: "20"
+    steps:
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Deploy to Production
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     DEPLOYING GLOBOMANTICS ROBOT FLEET API         ║"
+            echo "╠════════════════════════════════════════════════════╣"
+            echo "║  Environment: Production                           ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}                        ║"
+            echo "║  Branch: ${CIRCLE_BRANCH}                          ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Deploying..."
+            sleep 2
+            echo "Deployment complete!"
+
+      # ════════════════════════════════════════════════════════════════════
+      # SUCCESS NOTIFICATION
+      # Rich message with Globomantics branding
+      # Uses Slack Block Kit for formatting
+      # ════════════════════════════════════════════════════════════════════
+      - slack/notify:
+          channel: deployments
+          event: pass
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Deployment Successful",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Globomantics Robot Fleet API* has been deployed to production."
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Project:*\nGlobomantics Robot API"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\nProduction"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${CIRCLE_BRANCH}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n${CIRCLE_SHA1:0:7}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${CIRCLE_USERNAME}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Pipeline:*\n#${CIRCLE_BUILD_NUM}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Build"
+                      },
+                      "url": "${CIRCLE_BUILD_URL}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Application"
+                      },
+                      "url": "https://robot-api.globomantics.com"
+                    }
+                  ]
+                }
+              ]
+            }
+
+      # ════════════════════════════════════════════════════════════════════
+      # FAILURE NOTIFICATION
+      # Different message format for failures - more urgent styling
+      # ════════════════════════════════════════════════════════════════════
+      - slack/notify:
+          channel: deployments
+          event: fail
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "DEPLOYMENT FAILED",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "The deployment to *Production* has failed. Please investigate immediately."
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${CIRCLE_BRANCH}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${CIRCLE_USERNAME}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n${CIRCLE_SHA1:0:7}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Pipeline:*\n#${CIRCLE_BUILD_NUM}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Failed Build"
+                      },
+                      "url": "${CIRCLE_BUILD_URL}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
 workflows:
   version: 2
 
   build-test-deploy:
     jobs:
       - build
+
       - test:
+          # Context provides SLACK_ACCESS_TOKEN
+          context: slack-notifications
           requires:
             - build
 
-      # Slack notification on test failure
+      # ════════════════════════════════════════════════════════════════════
+      # ON-HOLD NOTIFICATION
+      # Notifies when workflow is waiting for approval
+      # Uses the built-in slack/on-hold job from the orb
+      # ════════════════════════════════════════════════════════════════════
       - slack/on-hold:
-          requires:
-            - test
-          filters:
-            branches:
-              only: main
-
-      - deploy:
-          # Use CircleCI Context for SLACK_WEBHOOK secret
           context: slack-notifications
           requires:
             - test
@@ -164,10 +371,91 @@ workflows:
             branches:
               only: main
 
-# ============================================
-# SETUP REQUIREMENTS:
-# 1. Create Slack App and get webhook URL
-# 2. In CircleCI, create a Context named 'slack-notifications'
-# 3. Add SLACK_WEBHOOK environment variable to the context
-# 4. Optionally add SLACK_DEFAULT_CHANNEL
-# ============================================
+      # Manual approval step
+      - hold-for-production:
+          type: approval
+          requires:
+            - slack/on-hold
+          filters:
+            branches:
+              only: main
+
+      - deploy:
+          context: slack-notifications
+          requires:
+            - hold-for-production
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# SETUP INSTRUCTIONS
+# ============================================================================
+#
+# STEP 1: Create Slack App
+#   1. Go to https://api.slack.com/apps
+#   2. Click "Create New App" → "From scratch"
+#   3. Name it "CircleCI Notifications"
+#   4. Select your Slack workspace
+#
+# STEP 2: Configure App Permissions
+#   1. Go to "OAuth & Permissions"
+#   2. Add Bot Token Scopes:
+#      - chat:write
+#      - chat:write.public (optional, for posting to any channel)
+#   3. Install app to workspace
+#   4. Copy the Bot User OAuth Token (starts with xoxb-)
+#
+# STEP 3: Create CircleCI Context
+#   1. Go to CircleCI → Organization Settings → Contexts
+#   2. Create context: "slack-notifications"
+#   3. Add environment variable:
+#      - SLACK_ACCESS_TOKEN = xoxb-your-token-here
+#   4. Optionally add:
+#      - SLACK_DEFAULT_CHANNEL = your-channel-id
+#
+# STEP 4: Get Channel ID
+#   1. In Slack, right-click the channel
+#   2. Select "View channel details"
+#   3. Scroll to bottom, copy the Channel ID
+#
+# ============================================================================
+# DISCUSSION QUESTIONS:
+#
+# 1. Why use Contexts instead of project environment variables?
+#    Answer: Contexts are shared across projects and have access controls.
+#    You can restrict who can use the context.
+#
+# 2. What's the difference between event: pass, fail, and always?
+#    Answer: pass = only on success, fail = only on failure,
+#    always = regardless of job status.
+#
+# 3. Can you notify multiple channels?
+#    Answer: Yes! Add multiple slack/notify steps with different channels.
+#
+# 4. How do you debug Slack notifications?
+#    Answer: Check the step output in CircleCI. Failed notifications
+#    show the Slack API error response.
+#
+# SLACK BLOCK KIT:
+#   - Design messages: https://app.slack.com/block-kit-builder
+#   - Block types: header, section, divider, actions, context, image
+#   - Use ${ENV_VAR} for CircleCI environment variables
+#
+# AVAILABLE TEMPLATES:
+#   - basic_success_1       - Simple success message
+#   - basic_fail_1          - Simple failure message
+#   - success_tagged_deploy_1 - Deployment success with tags
+#   - basic_on_hold_1       - Waiting for approval
+#
+# BEST PRACTICES:
+#   - Use different channels for different notification types
+#   - Keep messages concise but informative
+#   - Include action buttons for quick access
+#   - Use templates for consistency
+#   - Don't over-notify (notification fatigue!)
+#
+# NEXT STEPS (Demo 3):
+#   - Azure CLI orb for cloud deployments
+#   - OIDC authentication with cloud providers
+# ============================================================================

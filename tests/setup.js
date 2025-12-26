@@ -30,13 +30,16 @@ global.testUtils = {
   }
 };
 
-// Console spy for testing logging
+// Console spy for testing logging - suppress output during tests
+let consoleLogSpy;
+let consoleErrorSpy;
+
 beforeAll(() => {
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterAll(() => {
-  console.log.mockRestore();
-  console.error.mockRestore();
+  if (consoleLogSpy) consoleLogSpy.mockRestore();
+  if (consoleErrorSpy) consoleErrorSpy.mockRestore();
 });

@@ -1,0 +1,19 @@
+# Test Job
+# Run tests with coverage
+description: "Run Robot Fleet project tests"
+executor: default
+parameters:
+  test-command:
+    type: string
+    default: "npm test"
+    description: "Test command to run"
+steps:
+  - setup
+  - run:
+      name: Run tests
+      command: << parameters.test-command >>
+  - store_test_results:
+      path: test-results
+  - store_artifacts:
+      path: coverage
+      destination: coverage-report

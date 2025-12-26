@@ -1,0 +1,7 @@
+# Executor with Docker support for container builds
+description: "Base executor with Docker support for building images"
+docker:
+  - image: cimg/base:current
+working_directory: ~/project
+environment:
+  DOCKER_BUILDKIT: "1"
