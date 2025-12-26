@@ -1,0 +1,173 @@
+# Module 3 - Slack Notifications Orb
+# Demo: Clip 3 - Slack Notifications Orb — Real-World Integration
+# Production-ready monitoring in 10 lines vs 50+ lines of custom code
+
+version: 2.1
+
+orbs:
+  node: circleci/node@5.2.0
+  # Slack orb for notifications
+  # Requires SLACK_WEBHOOK environment variable in CircleCI Context
+  slack: circleci/slack@4.13.3
+
+jobs:
+  build:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - run: npm run build
+
+  test:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - run: npm test
+
+  deploy:
+    executor: node/default
+    steps:
+      - checkout
+      - run:
+          name: Deploy application
+          command: echo "Deploying to production..."
+
+      # SUCCESS notification using Slack orb
+      - slack/notify:
+          channel: deployments
+          event: pass
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "✅ Deployment Successful",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Project:*\nGlobomantics Robot API"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\nProduction"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${CIRCLE_BRANCH}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n${CIRCLE_SHA1:0:7}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Build"
+                      },
+                      "url": "${CIRCLE_BUILD_URL}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+      # FAILURE notification - different message on failure
+      - slack/notify:
+          channel: deployments
+          event: fail
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Deployment Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "The deployment to *Production* has failed. Please investigate immediately."
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${CIRCLE_BRANCH}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${CIRCLE_USERNAME}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Failed Build"
+                      },
+                      "url": "${CIRCLE_BUILD_URL}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }
+
+workflows:
+  version: 2
+
+  build-test-deploy:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+
+      # Slack notification on test failure
+      - slack/on-hold:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+
+      - deploy:
+          # Use CircleCI Context for SLACK_WEBHOOK secret
+          context: slack-notifications
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+
+# ============================================
+# SETUP REQUIREMENTS:
+# 1. Create Slack App and get webhook URL
+# 2. In CircleCI, create a Context named 'slack-notifications'
+# 3. Add SLACK_WEBHOOK environment variable to the context
+# 4. Optionally add SLACK_DEFAULT_CHANNEL
+# ============================================

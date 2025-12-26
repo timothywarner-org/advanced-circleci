@@ -1,0 +1,145 @@
+# Module 2 - Job Parameters for Reusable Job Definitions
+# Demo: Clip 3 - Job Parameters for Reusable Job Definitions
+# Transform 3 nearly-identical jobs into 1 parameterized job
+
+version: 2.1
+
+# ============================================
+# BEFORE: Three duplicate deploy jobs (60+ lines)
+# ============================================
+# jobs:
+#   deploy-dev:
+#     docker: [image: cimg/node:20]
+#     steps:
+#       - run: az login...
+#       - run: az containerapp update --name robot-api-dev...
+#       - run: curl slack-webhook "Deployed to DEV"
+#
+#   deploy-staging:
+#     docker: [image: cimg/node:20]
+#     steps:
+#       - run: az login...
+#       - run: az containerapp update --name robot-api-staging...
+#       - run: curl slack-webhook "Deployed to STAGING"
+#
+#   deploy-production:
+#     docker: [image: cimg/node:20]
+#     steps:
+#       - run: az login...
+#       - run: az containerapp update --name robot-api-production...
+#       - run: curl slack-webhook "Deployed to PRODUCTION"
+
+# ============================================
+# AFTER: One parameterized deploy job (~25 lines)
+# ============================================
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run build
+
+  test:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm test
+
+  # PARAMETERIZED JOB - One job, multiple uses
+  deploy:
+    # Job parameters defined here
+    parameters:
+      environment:
+        type: string
+        description: "Target environment (dev, staging, production)"
+      replicas:
+        type: integer
+        default: 1
+        description: "Number of container replicas"
+      notify-slack:
+        type: boolean
+        default: true
+        description: "Send Slack notification on deploy"
+      resource-group:
+        type: string
+        default: "globomantics-robots"
+        description: "Azure resource group"
+
+    docker:
+      - image: cimg/base:current
+
+    steps:
+      - run:
+          name: Deploy to << parameters.environment >>
+          command: |
+            echo "=========================================="
+            echo "Deploying Globomantics Robot API"
+            echo "=========================================="
+            echo "Environment: << parameters.environment >>"
+            echo "Replicas: << parameters.replicas >>"
+            echo "Resource Group: << parameters.resource-group >>"
+            echo ""
+            echo "Simulating Azure deployment..."
+            echo "az containerapp update \\"
+            echo "  --name robot-api-<< parameters.environment >> \\"
+            echo "  --resource-group << parameters.resource-group >> \\"
+            echo "  --replica-count << parameters.replicas >>"
+
+      # Conditional step using parameter
+      - when:
+          condition: << parameters.notify-slack >>
+          steps:
+            - run:
+                name: Notify Slack
+                command: |
+                  echo "Sending Slack notification..."
+                  echo "Message: Deployed to << parameters.environment >>"
+
+workflows:
+  version: 2
+
+  build-test-deploy:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+
+      # Same job called THREE times with different parameters!
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          replicas: 1
+          notify-slack: false
+          requires:
+            - test
+          filters:
+            branches:
+              only: develop
+
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          replicas: 2
+          notify-slack: true
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+
+      - deploy:
+          name: deploy-production
+          environment: production
+          replicas: 3
+          notify-slack: true
+          resource-group: "globomantics-prod"
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main

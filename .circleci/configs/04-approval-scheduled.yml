@@ -1,0 +1,113 @@
+# Module 1 - Advanced Patterns
+# Demo: Clip 5 - Matrix and Scheduled Workflows
+# Manual approval gates and scheduled triggers
+
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm run build
+
+  test:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm test
+
+  deploy-staging:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - run: echo "Deploying to staging environment..."
+
+  deploy-production:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - run: |
+          echo "🚀 Production deployment initiated!"
+          echo "Deploying commit: ${CIRCLE_SHA1}"
+          echo "Triggered by: ${CIRCLE_USERNAME}"
+
+  security-scan:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npm audit
+
+  dependency-update-check:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: npm outdated || true
+
+workflows:
+  version: 2
+
+  # Main workflow with MANUAL APPROVAL for production
+  build-test-deploy:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+      - deploy-staging:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+
+      # APPROVAL JOB - Pauses workflow until manually approved
+      # Use case: Manager sign-off before production deployment
+      - hold-for-approval:
+          type: approval
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+      # Production deploy only runs AFTER manual approval
+      - deploy-production:
+          requires:
+            - hold-for-approval
+          filters:
+            branches:
+              only: main
+
+  # SCHEDULED WORKFLOW - Nightly builds
+  # Runs automatically at 2 AM UTC every day
+  nightly-security-scan:
+    triggers:
+      - schedule:
+          # Cron syntax: minute hour day-of-month month day-of-week
+          cron: "0 2 * * *"  # 2:00 AM UTC daily
+          filters:
+            branches:
+              only: main
+    jobs:
+      - security-scan
+      - test
+
+  # SCHEDULED WORKFLOW - Weekly dependency check
+  # Runs every Monday at 9 AM UTC
+  weekly-dependency-check:
+    triggers:
+      - schedule:
+          cron: "0 9 * * 1"  # 9:00 AM UTC on Mondays
+          filters:
+            branches:
+              only: main
+    jobs:
+      - dependency-update-check
