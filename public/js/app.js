@@ -40,7 +40,7 @@ async function fetchRobots() {
         if (!response.ok) throw new Error('Failed to fetch robots');
 
         const data = await response.json();
-        robots = data.data || data;
+        robots = data.robots || data.data || data;
 
         renderRobotTable();
         updateMetrics();
@@ -374,7 +374,8 @@ async function addRobot() {
         if (!response.ok) throw new Error('Failed to create robot');
 
         const result = await response.json();
-        showToast(`Robot "${result.data.name}" created successfully!`, 'success');
+        const robot = result.data || result;
+        showToast(`Robot "${robot.name}" created successfully!`, 'success');
         closeModal();
         await fetchRobots();
     } catch (error) {
