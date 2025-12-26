@@ -22,6 +22,10 @@ npm run test:e2e         # E2E tests only
 # Code Quality
 npm run lint             # Run ESLint
 npm run lint:fix         # Auto-fix ESLint issues
+npm run format           # Format JS with Prettier
+npm run format:check     # Check JS formatting
+npm run lint:md          # Lint markdown files
+npm run lint:md:fix      # Auto-fix markdown issues
 npm run security         # npm audit for vulnerabilities
 
 # Docker

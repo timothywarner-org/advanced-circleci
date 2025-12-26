@@ -12,6 +12,10 @@
     "test:e2e": "jest tests/e2e --coverage",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
+    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.js\"",
+    "lint:md": "markdownlint \"**/*.md\" --ignore node_modules",
+    "lint:md:fix": "markdownlint \"**/*.md\" --ignore node_modules --fix",
     "security": "npm audit --audit-level=moderate",
     "build": "echo 'Build step - copying files...' && mkdir -p dist && cp -r src/* dist/",
     "docker:build": "docker build -t globomantics-robot-api .",
@@ -38,6 +42,9 @@
     "jest": "^29.7.0",
     "supertest": "^6.3.3",
     "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5",
+    "markdownlint-cli": "^0.39.0",
     "nodemon": "^3.0.2"
   },
   "engines": {
