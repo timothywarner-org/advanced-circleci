@@ -16,6 +16,18 @@
 
 ## Demo Flow (15 Minutes)
 
+### Timing Breakdown
+
+| Segment | Duration | Wall Clock | Key Actions |
+|---------|----------|------------|-------------|
+| Curiosity Hook | 1:00 | 0:00-1:00 | Show failing pipeline, identify missing `requires` |
+| Sequential Backbone | 4:00 | 1:00-5:00 | Build config, validate, push (pipeline ~45s) |
+| Fan-Out/Fan-In | 5:00 | 5:00-10:00 | Add parallel jobs, show DAG in UI |
+| Intentional Filters | 3:00 | 10:00-13:00 | Add branch filters, show skipped jobs |
+| Wrap and Challenge | 2:00 | 13:00-15:00 | Summarize, assign challenge |
+
+**Buffer:** Build ~45-60s, UI navigation ~10s between views
+
 ### 1) Curiosity Hook (1 min)
 
 - Show a failing pipeline graph where deploy ran before tests. Ask: "What single keyword lets us teach CircleCI the order we expect?"
