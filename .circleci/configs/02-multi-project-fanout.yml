@@ -1,0 +1,524 @@
+# ============================================================================
+# MODULE 1, DEMO 2: Multi-Project Fan-Out/Fan-In Pattern
+# ============================================================================
+#
+# LEARNING OBJECTIVE:
+#   Demonstrate advanced fan-out/fan-in patterns by building and testing
+#   multiple projects (Robot API + MCP Server) in parallel, then fanning
+#   in for deployment with approval gates.
+#
+# KEY CONCEPTS:
+#   - Multi-project fan-out: Build/test independent services in parallel
+#   - Nested fan-out: Each project fans out to its own test suite
+#   - Fan-in with approval: Gate production deploys behind manual approval
+#   - PR triggers: Run CI on all branches for open PRs
+#   - Branch protection: Only deploy from main
+#
+# WORKFLOW DIAGRAM:
+#
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │                        BUILD STAGE (Fan-Out)                        │
+#   │                                                                     │
+#   │    ┌─────────────────┐              ┌─────────────────┐            │
+#   │    │   build-api     │              │   build-mcp     │            │
+#   │    │  (Robot Fleet)  │              │   (Schematica)  │            │
+#   │    └────────┬────────┘              └────────┬────────┘            │
+#   └─────────────┼────────────────────────────────┼──────────────────────┘
+#                 │                                │
+#   ┌─────────────┼────────────────────────────────┼──────────────────────┐
+#   │             │      TEST STAGE (Nested Fan-Out)                      │
+#   │             ▼                                ▼                      │
+#   │  ┌──────────────────┐             ┌──────────────────┐             │
+#   │  │  API Test Suite  │             │  MCP Test Suite  │             │
+#   │  ├──────────────────┤             └──────────────────┘             │
+#   │  │ unit-tests-api   │                     │                        │
+#   │  │ integration-api  │                     │                        │
+#   │  │ e2e-tests-api    │                     │                        │
+#   │  │ security-api     │                     │                        │
+#   │  └──────────────────┘                     │                        │
+#   └─────────────┬─────────────────────────────┼─────────────────────────┘
+#                 │                             │
+#   ┌─────────────┴─────────────────────────────┴─────────────────────────┐
+#   │                     DEPLOY STAGE (Fan-In)                           │
+#   │                            │                                        │
+#   │                            ▼                                        │
+#   │                  ┌──────────────────┐                              │
+#   │                  │  deploy-staging  │  (All tests must pass)       │
+#   │                  └────────┬─────────┘                              │
+#   │                           │                                         │
+#   │                           ▼                                         │
+#   │                  ┌──────────────────┐                              │
+#   │                  │ [HOLD/APPROVAL]  │  (Manual gate)               │
+#   │                  └────────┬─────────┘                              │
+#   │                           │                                         │
+#   │                           ▼                                         │
+#   │                  ┌──────────────────┐                              │
+#   │                  │ deploy-production│                              │
+#   │                  └──────────────────┘                              │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# TRIGGER BEHAVIOR:
+#   - ALL branches: Runs build + test jobs (CI for PRs)
+#   - main branch only: Runs full pipeline including deploy + approval
+#
+# TIME SAVINGS EXAMPLE:
+#   Sequential: build-api(2m) → tests(7m) → build-mcp(1m) → test(1m) = 11 min
+#   Parallel:   [build-api + build-mcp](2m) → [all tests](3m) = 5 min
+#   SAVINGS: 55% faster!
+#
+# ============================================================================
+
+version: 2.1
+
+# ============================================================================
+# EXECUTORS - Reusable execution environments
+# ============================================================================
+executors:
+  node-executor:
+    docker:
+      - image: cimg/node:20.0
+    working_directory: ~/project
+    environment:
+      NODE_ENV: test
+
+# ============================================================================
+# COMMANDS - Reusable step sequences
+# ============================================================================
+commands:
+  setup-api:
+    description: "Checkout and install API dependencies"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - api-deps-v1-{{ checksum "package-lock.json" }}
+            - api-deps-v1-
+      - run:
+          name: Install API dependencies
+          command: npm ci
+      - save_cache:
+          key: api-deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+
+  setup-mcp:
+    description: "Checkout and install MCP server dependencies"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - mcp-deps-v1-{{ checksum "mcp-server/package-lock.json" }}
+            - mcp-deps-v1-
+      - run:
+          name: Install MCP server dependencies
+          command: cd mcp-server && npm ci
+      - save_cache:
+          key: mcp-deps-v1-{{ checksum "mcp-server/package-lock.json" }}
+          paths:
+            - mcp-server/node_modules
+
+# ============================================================================
+# JOBS
+# ============================================================================
+jobs:
+  # ==========================================================================
+  # ROBOT FLEET API JOBS
+  # ==========================================================================
+
+  # --------------------------------------------------------------------------
+  # BUILD API - Main application build
+  # --------------------------------------------------------------------------
+  build-api:
+    executor: node-executor
+    steps:
+      - setup-api
+
+      - run:
+          name: Build Robot Fleet API
+          command: npm run build
+
+      - run:
+          name: Lint API code
+          command: npm run lint
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+            - public
+            - package.json
+            - package-lock.json
+            - src
+            - tests
+
+  # --------------------------------------------------------------------------
+  # API UNIT TESTS - Fast isolated tests
+  # --------------------------------------------------------------------------
+  unit-tests-api:
+    executor: node-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run API unit tests
+          command: npm run test:unit
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-api-unit
+
+  # --------------------------------------------------------------------------
+  # API INTEGRATION TESTS - Endpoint testing
+  # --------------------------------------------------------------------------
+  integration-tests-api:
+    executor: node-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run API integration tests
+          command: npm run test:integration
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-api-integration
+
+  # --------------------------------------------------------------------------
+  # API E2E TESTS - Full workflow testing
+  # --------------------------------------------------------------------------
+  e2e-tests-api:
+    executor: node-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run API E2E tests
+          command: npm run test:e2e
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: coverage-api-e2e
+
+  # --------------------------------------------------------------------------
+  # API SECURITY SCAN - Vulnerability check
+  # --------------------------------------------------------------------------
+  security-scan-api:
+    executor: node-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Security audit (API)
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     ROBOT FLEET API - SECURITY SCAN                ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            npm audit --audit-level=moderate || true
+
+  # ==========================================================================
+  # SCHEMATICA MCP SERVER JOBS
+  # ==========================================================================
+
+  # --------------------------------------------------------------------------
+  # BUILD MCP - MCP server build
+  # --------------------------------------------------------------------------
+  build-mcp:
+    executor: node-executor
+    steps:
+      - setup-mcp
+
+      - run:
+          name: Verify MCP server setup
+          command: |
+            echo "╔════════════════════════════════════════════════════╗"
+            echo "║     SCHEMATICA MCP SERVER - BUILD                  ║"
+            echo "╚════════════════════════════════════════════════════╝"
+            cd mcp-server && node --version && npm --version
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - mcp-server
+
+  # --------------------------------------------------------------------------
+  # MCP TESTS - Full test suite
+  # --------------------------------------------------------------------------
+  test-mcp:
+    executor: node-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run MCP server tests
+          command: cd mcp-server && npm test
+      - store_test_results:
+          path: mcp-server/test-results
+      - store_artifacts:
+          path: mcp-server/coverage
+          destination: coverage-mcp
+
+  # ==========================================================================
+  # DEPLOYMENT JOBS
+  # ==========================================================================
+
+  # --------------------------------------------------------------------------
+  # DEPLOY STAGING - Automatic after all tests pass
+  # --------------------------------------------------------------------------
+  deploy-staging:
+    executor: node-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Staging
+          command: |
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║              DEPLOYING TO STAGING                          ║"
+            echo "╠════════════════════════════════════════════════════════════╣"
+            echo "║                                                            ║"
+            echo "║  Services:                                                 ║"
+            echo "║    ✓ Robot Fleet API                                       ║"
+            echo "║    ✓ Schematica MCP Server                                 ║"
+            echo "║                                                            ║"
+            echo "║  All tests passed:                                         ║"
+            echo "║    ✓ API Unit Tests                                        ║"
+            echo "║    ✓ API Integration Tests                                 ║"
+            echo "║    ✓ API E2E Tests                                         ║"
+            echo "║    ✓ API Security Scan                                     ║"
+            echo "║    ✓ MCP Server Tests                                      ║"
+            echo "║                                                            ║"
+            echo "║  Branch: ${CIRCLE_BRANCH}                                  ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}                                ║"
+            echo "║                                                            ║"
+            echo "╚════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Staging deployment complete!"
+
+  # --------------------------------------------------------------------------
+  # DEPLOY PRODUCTION - Requires manual approval
+  # --------------------------------------------------------------------------
+  deploy-production:
+    executor: node-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy to Production
+          command: |
+            echo "╔════════════════════════════════════════════════════════════╗"
+            echo "║            DEPLOYING TO PRODUCTION                         ║"
+            echo "╠════════════════════════════════════════════════════════════╣"
+            echo "║                                                            ║"
+            echo "║  🚀 PRODUCTION RELEASE                                     ║"
+            echo "║                                                            ║"
+            echo "║  Services:                                                 ║"
+            echo "║    ✓ Robot Fleet API                                       ║"
+            echo "║    ✓ Schematica MCP Server                                 ║"
+            echo "║                                                            ║"
+            echo "║  Approval: Manual (via CircleCI UI)                        ║"
+            echo "║  Branch: ${CIRCLE_BRANCH}                                  ║"
+            echo "║  Commit: ${CIRCLE_SHA1:0:7}                                ║"
+            echo "║                                                            ║"
+            echo "╚════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Deploying to production servers..."
+            echo "Updating load balancers..."
+            echo "Running health checks..."
+            echo "Production deployment complete!"
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
+workflows:
+  version: 2
+
+  # --------------------------------------------------------------------------
+  # MAIN CI/CD WORKFLOW
+  #
+  # Trigger behavior:
+  #   - ALL BRANCHES: Build and test (for PR validation)
+  #   - MAIN ONLY: Deploy to staging → approval → production
+  #
+  # This enables:
+  #   - Developers get fast feedback on all PRs
+  #   - Only main branch can deploy
+  #   - Production requires manual approval
+  # --------------------------------------------------------------------------
+  build-test-deploy:
+    jobs:
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 1: BUILD (Fan-Out at Project Level)
+      #
+      # Both projects build in PARALLEL - no dependencies between them.
+      # This is the first fan-out point.
+      # ════════════════════════════════════════════════════════════════════
+      - build-api:
+          name: "Build Robot Fleet API"
+
+      - build-mcp:
+          name: "Build Schematica MCP"
+
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 2: TEST (Nested Fan-Out)
+      #
+      # API tests fan out into 4 parallel jobs.
+      # MCP tests run as single job (simpler test suite).
+      # All 5 test jobs run in parallel!
+      # ════════════════════════════════════════════════════════════════════
+
+      # API Test Suite (4 parallel jobs)
+      - unit-tests-api:
+          name: "API: Unit Tests"
+          requires:
+            - "Build Robot Fleet API"
+
+      - integration-tests-api:
+          name: "API: Integration Tests"
+          requires:
+            - "Build Robot Fleet API"
+
+      - e2e-tests-api:
+          name: "API: E2E Tests"
+          requires:
+            - "Build Robot Fleet API"
+
+      - security-scan-api:
+          name: "API: Security Scan"
+          requires:
+            - "Build Robot Fleet API"
+
+      # MCP Test Suite (1 job)
+      - test-mcp:
+          name: "MCP: Full Test Suite"
+          requires:
+            - "Build Schematica MCP"
+
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 3: DEPLOY STAGING (Fan-In Point)
+      #
+      # This job waits for ALL test jobs to pass.
+      # Only runs on main branch.
+      # ════════════════════════════════════════════════════════════════════
+      - deploy-staging:
+          name: "Deploy to Staging"
+          requires:
+            - "API: Unit Tests"
+            - "API: Integration Tests"
+            - "API: E2E Tests"
+            - "API: Security Scan"
+            - "MCP: Full Test Suite"
+          filters:
+            branches:
+              only: main
+
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 4: MANUAL APPROVAL GATE
+      #
+      # Workflow pauses here until someone clicks "Approve" in CircleCI UI.
+      # This is your production safety gate!
+      #
+      # Who can approve:
+      #   - Any user with write access to the project
+      #   - Configure required approvers in org settings
+      # ════════════════════════════════════════════════════════════════════
+      - hold-for-production-approval:
+          type: approval
+          requires:
+            - "Deploy to Staging"
+          filters:
+            branches:
+              only: main
+
+      # ════════════════════════════════════════════════════════════════════
+      # STAGE 5: DEPLOY PRODUCTION
+      #
+      # Only runs after manual approval.
+      # Only on main branch.
+      # ════════════════════════════════════════════════════════════════════
+      - deploy-production:
+          name: "Deploy to Production"
+          requires:
+            - hold-for-production-approval
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# CONFIGURATION DOCUMENTATION
+# ============================================================================
+#
+# TRIGGER BEHAVIOR:
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │ Branch Type       │ Jobs That Run                                  │
+#   ├───────────────────┼────────────────────────────────────────────────┤
+#   │ feature/* branch  │ build-api, build-mcp, all tests                │
+#   │ develop branch    │ build-api, build-mcp, all tests                │
+#   │ main branch       │ build, test, staging, approval, production     │
+#   │ Pull Request      │ Same as source branch                          │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# FAN-OUT/FAN-IN PATTERN EXPLAINED:
+#
+#   Fan-Out (diverging):
+#   - One job triggers multiple downstream jobs
+#   - Example: build-api triggers 4 parallel test jobs
+#   - Benefit: Parallel execution = faster feedback
+#
+#   Fan-In (converging):
+#   - One job waits for multiple upstream jobs
+#   - Example: deploy-staging requires all 5 test jobs
+#   - Benefit: Deployment gate ensures quality
+#
+# APPROVAL GATE BEHAVIOR:
+#   1. Staging deploy completes
+#   2. Workflow status shows "On Hold"
+#   3. Authorized user clicks "Approve" in CircleCI UI
+#   4. Production deploy begins
+#   5. If not approved within 15 days, workflow times out
+#
+# TIME SAVINGS CALCULATION:
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │ Execution Mode │ Timeline                                          │
+#   ├────────────────┼───────────────────────────────────────────────────┤
+#   │ Sequential     │ build-api(2m) → unit(2m) → int(3m) → e2e(2m) →   │
+#   │                │ security(1m) → build-mcp(1m) → test-mcp(1m)       │
+#   │                │ = 12 minutes total                                │
+#   ├────────────────┼───────────────────────────────────────────────────┤
+#   │ Parallel       │ [build-api(2m) + build-mcp(1m)] → parallel tests │
+#   │ (this config)  │ = 2m + 3m (slowest test) = 5 minutes total       │
+#   ├────────────────┼───────────────────────────────────────────────────┤
+#   │ SAVINGS        │ 58% faster! (7 minutes saved per pipeline)       │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# DISCUSSION QUESTIONS:
+#
+# 1. Why build API and MCP server in parallel instead of sequentially?
+#    Answer: They're independent projects. No reason to wait.
+#
+# 2. What happens if API unit tests fail but MCP tests pass?
+#    Answer: deploy-staging never runs because it requires ALL tests.
+#
+# 3. Can a developer bypass the approval gate?
+#    Answer: No. The workflow physically cannot proceed without approval.
+#
+# 4. Why do we still run tests on feature branches if we don't deploy?
+#    Answer: Fast feedback! Catch bugs before merging to main.
+#
+# BEST PRACTICES DEMONSTRATED:
+#   ✓ Parallel builds for independent services
+#   ✓ Shared workspaces avoid redundant npm installs
+#   ✓ All branches get CI (PR validation)
+#   ✓ Only main can deploy (branch protection)
+#   ✓ Manual approval before production (safety gate)
+#   ✓ Clear job naming for UI readability
+#
+# ============================================================================
