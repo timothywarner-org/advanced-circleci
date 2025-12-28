@@ -41,7 +41,7 @@ npm test
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `MCP_PORT` | 3001 | Port for the MCP server |
-| `ROBOT_API_URL` | http://localhost:3000 | Robot API base URL |
+| `ROBOT_API_URL` | `http://localhost:3000` | Robot API base URL |
 
 ## Endpoints
 
