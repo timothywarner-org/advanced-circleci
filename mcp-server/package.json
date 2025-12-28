@@ -1,0 +1,29 @@
+{
+  "name": "schematica-mcp",
+  "version": "1.0.0",
+  "description": "Schematica MCP Server for Globomantics Robot Fleet API",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "anthropic",
+    "robots"
+  ],
+  "author": "Globomantics Engineering Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
