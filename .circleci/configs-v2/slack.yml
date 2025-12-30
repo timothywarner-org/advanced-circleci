@@ -58,7 +58,7 @@ commands:
             echo "Environment: << parameters.environment >>"
             echo "Build completed successfully ✓"
             sleep 2  # Simulate build time
-
+            
       - run:
           name: Simulate Azure Container App Deployment
           command: |
@@ -79,7 +79,7 @@ commands:
             echo "Status: RUNNING"
             echo ""
             echo "Deployment completed successfully ✓"
-
+            
       - run:
           name: Simulate Health Check
           command: |
@@ -104,19 +104,19 @@ jobs:
     executor: node-executor
     steps:
       - checkout
-
+      
       # Orb command handles: restore_cache, npm ci, save_cache automatically
       - node/install-packages:
           pkg-manager: npm
           cache-version: v1
-
+      
       - run:
           name: Build Application
           command: |
             echo "Building Robot Fleet API..."
             npm run build
             echo "Build completed successfully ✓"
-
+      
       # Persist artifacts for downstream jobs
       - persist_to_workspace:
           root: .
@@ -132,27 +132,27 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-
+      
       - run:
           name: Run Unit Tests
           command: |
             echo "Running Robot Fleet API test suite..."
             npm test
             echo "Tests completed successfully ✓"
-
+      
       - store_test_results:
           path: test-results
-
+      
       - store_artifacts:
           path: coverage
           destination: coverage-report
-
+      
       # CRITICAL: Notify on test failure (fail fast pattern)
       # Only notifies if previous steps failed
       - slack/notify:
           event: fail
           template: basic_fail_1
-          channel: C0A6655DKS6  # #circleci-builds channel ID
+          channel: C08A48PLBH3  # #circleci-builds channel ID
 
   # Simulate deployment to Azure environment
   deploy:
@@ -169,12 +169,12 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-
+      
       # Simulate Azure deployment (no actual cloud resources)
       - simulate-azure-deployment:
           environment: << parameters.environment >>
           app-name: << parameters.app-name >>
-
+      
       # Notify on successful deployment
       - slack/notify:
           event: pass
@@ -228,14 +228,14 @@ jobs:
                 }
               ]
             }
-          channel: C0A6655DKS6  # #circleci-builds channel ID
+          channel: C08A48PLBH3  # #circleci-builds channel ID
 
 # ============================================================================
 # WORKFLOWS: Orchestrate job execution with approval gates
 # ============================================================================
 workflows:
   version: 2
-
+  
   # Primary workflow: Build → Test → Dev → Staging → Approve → Prod
   build-test-deploy:
     jobs:
@@ -247,14 +247,14 @@ workflows:
                 - main
                 - develop
                 - /feature\/.*/
-
+      
       # Test after successful build
       # Context provides SLACK_WEBHOOK env var
       - test:
           requires:
             - build
           context: slack-notifications
-
+      
       # ──────────────────────────────────────────────────────────────
       # DEV ENVIRONMENT: Auto-deploy after tests pass
       # ──────────────────────────────────────────────────────────────
@@ -270,7 +270,7 @@ workflows:
               only:
                 - develop
                 - /feature\/.*/
-
+      
       # ──────────────────────────────────────────────────────────────
       # STAGING ENVIRONMENT: Auto-deploy from main branch only
       # ──────────────────────────────────────────────────────────────
@@ -284,11 +284,11 @@ workflows:
           filters:
             branches:
               only: main
-
+      
       # ──────────────────────────────────────────────────────────────
       # APPROVAL GATE: Manual intervention required for production
       # ──────────────────────────────────────────────────────────────
-
+      
       # Slack notification: "Staging deployed, ready for prod approval"
       - slack/on-hold:
           context: slack-notifications
@@ -297,7 +297,7 @@ workflows:
           filters:
             branches:
               only: main
-
+      
       # Pause workflow for human approval
       - hold-for-production:
           type: approval
@@ -307,7 +307,7 @@ workflows:
           filters:
             branches:
               only: main
-
+      
       # ──────────────────────────────────────────────────────────────
       # PRODUCTION ENVIRONMENT: Only after manual approval
       # ──────────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ workflows:
 # ============================================================================
 # DEMO SCENARIOS
 # ============================================================================
-#
+# 
 # Scenario 1: Feature Branch
 # ──────────────────────────────────────────────────────────────────────────
 # Branch: feature/new-robot-endpoint
@@ -356,7 +356,7 @@ workflows:
 # 1. ORB VERSION PINNING:
 #    node@6.1.0    - Gets all 6.1.x patches (recommended for stability)
 #    slack@4.14.0  - Exact version (maximum stability)
-#
+#    
 #    Why not @6 or @4? Because major version pins get breaking changes.
 #    Why not @volatile? Because it's literally called "volatile" - never use it.
 #
