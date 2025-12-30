@@ -34,7 +34,8 @@
       "Bash(npm test:*)",
       "Bash(where:*)",
       "Bash(circleci config validate:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(cat:*)"
     ]
   }
 }

@@ -4,9 +4,11 @@
 
 set -euo pipefail
 
+# Bash guard pattern to ensure required env var is set
 : "${CIRCLECI_API_TOKEN:?CIRCLECI_API_TOKEN env var required}"
 
 project_slug="gh/timothywarner-org/advanced-circleci"
+
 api_endpoint="https://circleci.com/api/v2/project/${project_slug}/pipeline"
 
 # Example 1: Run the approval-gated workflow and echo a greeting.
