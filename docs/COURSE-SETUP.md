@@ -115,6 +115,13 @@ npm install
 npm start
 # In another terminal:
 curl http://localhost:3000/api/health
+
+# Test MCP server (optional)
+cd mcp-server
+npm install
+npm start
+# In another terminal:
+curl http://localhost:3001/health
 ```
 
 ## Demo Environment Prep

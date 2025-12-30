@@ -1,0 +1,131 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4A90D9', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2E5C8A', 'lineColor': '#5C8AB5', 'secondaryColor': '#F5A623', 'tertiaryColor': '#E8F4FD', 'background': '#1a1a2e', 'mainBkg': '#16213e', 'textColor': '#eee', 'nodeBorder': '#4A90D9', 'clusterBkg': '#0f3460', 'clusterBorder': '#4A90D9'}}}%%
+
+flowchart TB
+    %% ============================================
+    %% SCHEMATICA MCP SERVER ARCHITECTURE DIAGRAM
+    %% Globomantics Robot Fleet Management System
+    %% ============================================
+
+    subgraph CLIENT["<b>AI Assistant Layer</b>"]
+        direction TB
+        CLAUDE["<b>Claude AI</b><br/>Natural Language<br/>Processing Engine"]
+        CONFIG["<b>MCP Configuration</b><br/><code>url: localhost:3001/mcp</code>"]
+    end
+
+    subgraph MCP_SERVER["<b>SCHEMATICA MCP SERVER</b><br/><i>@modelcontextprotocol/sdk v1.0.0 | Port 3001</i>"]
+        direction TB
+
+        subgraph HTTP_LAYER["<b>HTTP Server Layer</b>"]
+            HTTP["<b>Node.js HTTP Server</b><br/><code>createServer()</code>"]
+            CORS["<b>CORS Middleware</b><br/>Access-Control-Allow-Origin: *<br/>Methods: GET, POST, OPTIONS"]
+            HEALTH["<b>Health Endpoint</b><br/><code>GET /health</code><br/>Returns: status, server name"]
+            MCP_ENDPOINT["<b>MCP Protocol Endpoint</b><br/><code>POST /mcp</code><br/>Main protocol handler"]
+        end
+
+        subgraph TRANSPORT["<b>Transport Layer</b>"]
+            STREAM["<b>StreamableHTTPServerTransport</b><br/>Bidirectional HTTP Streaming<br/>Session-less mode<br/><i>Handles request/response lifecycle</i>"]
+        end
+
+        subgraph MCP_CORE["<b>MCP Server Core</b>"]
+            SERVER["<b>McpServer Instance</b><br/>name: schematica-mcp<br/>version: 1.0.0<br/><i>Tool registration & routing</i>"]
+        end
+
+        subgraph TOOLS["<b>Robot Fleet Management Tools</b><br/><i>6 Registered MCP Tools</i>"]
+            direction LR
+            subgraph READ_OPS["<b>Read Operations</b>"]
+                T1["<b>list_robots</b><br/><i>GET /api/robots</i><br/>Params: status, location<br/>Returns: Robot array"]
+                T2["<b>get_robot</b><br/><i>GET /api/robots/:id</i><br/>Required: id<br/>Returns: Single robot"]
+            end
+            subgraph WRITE_OPS["<b>Write Operations</b>"]
+                T3["<b>create_robot</b><br/><i>POST /api/robots</i><br/>Required: name, type<br/>Optional: location"]
+                T4["<b>update_robot</b><br/><i>PUT /api/robots/:id</i><br/>Props: name, status,<br/>location, batteryLevel"]
+                T5["<b>delete_robot</b><br/><i>DELETE /api/robots/:id</i><br/>Decommissions robot<br/>Returns: success"]
+            end
+            subgraph MAINT_OPS["<b>Maintenance</b>"]
+                T6["<b>schedule_maintenance</b><br/><i>POST /api/robots/:id/maintenance</i><br/>Types: routine, repair, upgrade<br/>Optional: scheduledDate"]
+            end
+        end
+
+        subgraph HANDLER["<b>API Integration Layer</b>"]
+            TOOL_HANDLER["<b>handleToolCall()</b><br/>Tool name routing<br/>Parameter extraction<br/>Error handling wrapper"]
+            API_REQUEST["<b>apiRequest()</b><br/>HTTP fetch wrapper<br/>JSON serialization<br/>Response parsing"]
+        end
+    end
+
+    subgraph ROBOT_API["<b>GLOBOMANTICS ROBOT FLEET API</b><br/><i>Express.js | Port 3000</i>"]
+        direction TB
+        EXPRESS["<b>Express.js Application</b><br/><code>src/index.js</code>"]
+
+        subgraph ROUTES["<b>REST API Routes</b>"]
+            direction LR
+            R1["<b>GET</b> /api/robots"]
+            R2["<b>GET</b> /api/robots/:id"]
+            R3["<b>POST</b> /api/robots"]
+            R4["<b>PUT</b> /api/robots/:id"]
+            R5["<b>DELETE</b> /api/robots/:id"]
+            R6["<b>POST</b> /api/robots/:id/maintenance"]
+        end
+
+        SERVICE["<b>robotService.js</b><br/>Business Logic Layer<br/>CRUD Operations<br/>Maintenance Scheduling"]
+        DATA[("'<b>Robot Data Store</b><br/>In-Memory Database<br/>Robot Entities<br/>Maintenance Records'")]
+    end
+
+    %% Request Flow Connections
+    CLAUDE -->|"1. User Request<br/>(Natural Language)"| CONFIG
+    CONFIG -->|"2. MCP Tool Call<br/>(HTTP POST)"| MCP_ENDPOINT
+
+    HTTP --> CORS
+    HTTP --> HEALTH
+    HTTP --> MCP_ENDPOINT
+
+    MCP_ENDPOINT -->|"3. Create Transport"| STREAM
+    STREAM <-->|"4. Connect Server<br/>Handle Request"| SERVER
+
+    SERVER -->|"5. Route to Tool"| T1
+    SERVER --> T2
+    SERVER --> T3
+    SERVER --> T4
+    SERVER --> T5
+    SERVER --> T6
+
+    T1 --> TOOL_HANDLER
+    T2 --> TOOL_HANDLER
+    T3 --> TOOL_HANDLER
+    T4 --> TOOL_HANDLER
+    T5 --> TOOL_HANDLER
+    T6 --> TOOL_HANDLER
+
+    TOOL_HANDLER -->|"6. Build API Request"| API_REQUEST
+    API_REQUEST -->|"7. HTTP fetch()<br/>JSON payload"| EXPRESS
+
+    EXPRESS --> R1 & R2 & R3 & R4 & R5 & R6
+    R1 & R2 & R3 & R4 & R5 & R6 --> SERVICE
+    SERVICE <-->|"8. Data Operations"| DATA
+
+    SERVICE -->|"9. JSON Response"| API_REQUEST
+    API_REQUEST -->|"10. Format MCP Response<br/>{ content: [{ type: 'text', text: JSON }] }"| TOOL_HANDLER
+    TOOL_HANDLER --> SERVER
+    SERVER --> STREAM
+    STREAM -->|"11. Stream Response"| CLAUDE
+
+    %% Styling Classes
+    classDef clientNode fill:#4A90D9,stroke:#2E5C8A,stroke-width:3px,color:#fff,font-weight:bold
+    classDef mcpNode fill:#27ae60,stroke:#1e8449,stroke-width:2px,color:#fff
+    classDef transportNode fill:#9b59b6,stroke:#7d3c98,stroke-width:2px,color:#fff
+    classDef toolNode fill:#e67e22,stroke:#d35400,stroke-width:2px,color:#fff
+    classDef handlerNode fill:#f39c12,stroke:#d68910,stroke-width:2px,color:#fff
+    classDef apiNode fill:#3498db,stroke:#2980b9,stroke-width:2px,color:#fff
+    classDef serviceNode fill:#1abc9c,stroke:#16a085,stroke-width:2px,color:#fff
+    classDef dataNode fill:#2ecc71,stroke:#27ae60,stroke-width:3px,color:#fff
+    classDef routeNode fill:#34495e,stroke:#2c3e50,stroke-width:1px,color:#fff,font-size:10px
+
+    %% Apply Styles
+    class CLAUDE,CONFIG clientNode
+    class SERVER,MCP_ENDPOINT,HTTP,CORS,HEALTH mcpNode
+    class STREAM transportNode
+    class T1,T2,T3,T4,T5,T6 toolNode
+    class TOOL_HANDLER,API_REQUEST handlerNode
+    class EXPRESS apiNode
+    class SERVICE serviceNode
+    class DATA dataNode
+    class R1,R2,R3,R4,R5,R6 routeNode

@@ -1,0 +1,276 @@
+# ============================================================================
+# MODULE 1: Workflow Orchestration Best Practices
+# ============================================================================
+# Fan-out/Fan-in pattern: Build once, test in parallel, converge to deploy.
+# Uses workspace to share node_modules across jobs (install once, use many).
+#
+# WORKFLOW VISUALIZATION:
+#
+#   require-approval=true (default):
+#                    ┌─► lint ──────────┐
+#                    │                  │
+#   build ──────────►├─► test-unit ─────┼──► [approve-deploy] ──► deploy-simulation
+#                    │                  │
+#                    ├─► test-integ ────┤
+#                    │                  │
+#                    └─► test-e2e ──────┘
+#
+#   require-approval=false (auto-deploy):
+#                    ┌─► lint ──────────┐
+#                    │                  │
+#   build ──────────►├─► test-unit ─────┼──────► deploy-simulation
+#                    │                  │
+#                    ├─► test-integ ────┤
+#                    │                  │
+#                    └─► test-e2e ──────┘
+#
+#   Total time: ~2-3 min (parallel) vs ~6-8 min (sequential)
+# ============================================================================
+
+version: 2.1
+
+# ============================================================================
+# PIPELINE PARAMETERS: Feature flags configurable via API, UI, or triggers
+# ============================================================================
+parameters:
+  require-approval:
+    type: boolean
+    default: true
+    description: "Require manual approval before deploy (false = auto-deploy)"
+
+jobs:
+  # --------------------------------------------------------------------------
+  # BUILD: Install deps once, persist to workspace for all downstream jobs
+  # --------------------------------------------------------------------------
+  build:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      # CACHING: Restores node_modules from cache if package-lock.json unchanged
+      # First key = exact match, second key = partial fallback (may need npm ci)
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+            - deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      # Save to cache after install; only runs if key doesn't already exist
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Build application
+          command: npm run build
+      # KEY CONCEPT: Persist workspace so downstream jobs skip npm ci
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+
+  # --------------------------------------------------------------------------
+  # PARALLEL JOBS: All attach workspace, run simultaneously after build
+  # --------------------------------------------------------------------------
+  lint:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run linter
+          command: npm run lint
+
+  test-unit:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run unit tests
+          command: npm run test:unit
+      # store_test_results: Uploads JUnit XML for CircleCI's Test Insights tab
+      # Enables test timing analysis, flaky test detection, and historical trends
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: unit-coverage
+
+  test-integration:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run integration tests
+          command: npm run test:integration
+      # Parses test XML for the Insights dashboard (separate from artifacts)
+      - store_test_results:
+          path: test-results
+
+  test-e2e:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run E2E tests
+          command: npm run test:e2e
+      # Test results enable automatic test splitting in future parallelism configs
+      - store_test_results:
+          path: test-results
+
+  # --------------------------------------------------------------------------
+  # DEPLOY SIMULATION: Fan-in - requires ALL parallel jobs to pass
+  # --------------------------------------------------------------------------
+  deploy-simulation:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy Robot Fleet API (simulated)
+          command: |
+            echo "==========================================="
+            echo "  DEPLOYING GLOBOMANTICS ROBOT FLEET API"
+            echo "==========================================="
+            # CIRCLE_BRANCH: Git branch that triggered this pipeline
+            echo "  Branch: ${CIRCLE_BRANCH}"
+            # CIRCLE_SHA1: Full 40-char Git commit SHA (truncated here to 7)
+            echo "  Commit: ${CIRCLE_SHA1:0:7}"
+            # CIRCLE_BUILD_NUM: Auto-incrementing build number for this project
+            echo "  Build:  ${CIRCLE_BUILD_NUM}"
+            echo "==========================================="
+            echo "Deployment successful! (simulated)"
+
+# ============================================================================
+# WORKFLOW: Fan-out after build, fan-in before deploy
+# ============================================================================
+# Two workflows controlled by pipeline parameter - only one runs at a time
+workflows:
+  # --------------------------------------------------------------------------
+  # WORKFLOW 1: With approval gate (default when require-approval=true)
+  # --------------------------------------------------------------------------
+  m1-build-test-deploy:
+    # WHEN at workflow level: entire workflow only runs if condition is true
+    when: << pipeline.parameters.require-approval >>
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      # FAN-OUT: These 4 jobs all require build, so they run in PARALLEL
+      - lint:
+          requires:
+            - build
+
+      - test-unit:
+          requires:
+            - build
+
+      - test-integration:
+          requires:
+            - build
+
+      - test-e2e:
+          requires:
+            - build
+
+      # APPROVAL GATE: Pauses workflow until someone clicks "Approve" in UI
+      # type: approval = special job with no compute cost while waiting
+      - approve-deploy:
+          type: approval
+          requires:
+            - lint
+            - test-unit
+            - test-integration
+            - test-e2e
+          filters:
+            branches:
+              only: main
+
+      # FAN-IN: Deploy only after manual approval
+      - deploy-simulation:
+          requires:
+            - approve-deploy
+          filters:
+            branches:
+              only: main
+
+  # --------------------------------------------------------------------------
+  # WORKFLOW 2: Auto-deploy without approval (when require-approval=false)
+  # --------------------------------------------------------------------------
+  m1-build-test-deploy-auto:
+    # UNLESS at workflow level: runs when condition is false (inverse of when)
+    unless: << pipeline.parameters.require-approval >>
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      - lint:
+          requires:
+            - build
+
+      - test-unit:
+          requires:
+            - build
+
+      - test-integration:
+          requires:
+            - build
+
+      - test-e2e:
+          requires:
+            - build
+
+      # FAN-IN: Deploy directly after tests pass (no approval gate)
+      - deploy-simulation:
+          requires:
+            - lint
+            - test-unit
+            - test-integration
+            - test-e2e
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# MODULE 1 KEY CONCEPTS DEMONSTRATED:
+#
+# 1. REQUIRES KEYWORD: Creates job dependencies (build → tests → deploy)
+# 2. FAN-OUT: Multiple jobs with same requirement run in parallel
+# 3. FAN-IN: Single job requiring multiple predecessors waits for all
+# 4. BRANCH FILTERS: Control which branches trigger which jobs
+# 5. WORKSPACE: Share artifacts between jobs (eliminates redundant npm ci)
+# 6. APPROVAL GATES: type: approval pauses workflow for manual approval
+# 7. PIPELINE PARAMETERS: Feature flags to control workflow behavior
+# 8. CONDITIONAL WORKFLOWS: when/unless at WORKFLOW level toggles entire flows
+#    (Note: when/unless must be at workflow level, not individual job level)
+#
+# TRIGGERING WITH PARAMETERS (via API or curl):
+#   curl -X POST https://circleci.com/api/v2/project/gh/OWNER/REPO/pipeline \
+#     -H "Circle-Token: $TOKEN" -H "Content-Type: application/json" \
+#     -d '{"parameters": {"require-approval": false}}'
+#
+# CREDIT CONSUMPTION: Same as sequential! You pay for compute time, not wall time.
+# ============================================================================

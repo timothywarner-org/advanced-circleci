@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Globomantics Robot Fleet API - Azure Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0078D4 0%, #5C2D91 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+        header {
+            text-align: center;
+            border-bottom: 3px solid #0078D4;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #0078D4;
+            margin-bottom: 5px;
+            font-size: 2.4em;
+            font-weight: 600;
+        }
+        .subtitle {
+            color: #5C2D91;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        .description {
+            color: #666;
+            font-size: 0.95em;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+            padding: 20px 0;
+        }
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .info-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid #0078D4;
+        }
+        .info-card h3 {
+            color: #0078D4;
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        .info-card ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #333;
+        }
+        .info-card li {
+            margin: 8px 0;
+        }
+        .info-card.dev { border-left-color: #107C10; }
+        .info-card.dev h3 { color: #107C10; }
+        .info-card.staging { border-left-color: #FF8C00; }
+        .info-card.staging h3 { color: #FF8C00; }
+        .info-card.prod { border-left-color: #773B93; }
+        .info-card.prod h3 { color: #773B93; }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 2px solid #333;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #888;
+            font-size: 0.9em;
+        }
+        .footer a {
+            color: #0078D4;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Globomantics Robot Fleet API</h1>
+            <div class="subtitle">Azure Container Apps Infrastructure Architecture</div>
+            <div class="description">
+                Complete CI/CD pipeline from CircleCI to Azure Container Apps with three environments (dev, staging, production),
+                auto-scaling, health probes, managed identity authentication, and comprehensive logging.
+            </div>
+        </header>
+
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#004578', 'lineColor': '#50E6FF', 'secondaryColor': '#50E6FF', 'tertiaryColor': '#773B93', 'background': '#ffffff'}}}%%
+
+flowchart TB
+    subgraph CICD["<b>CircleCI CI/CD Pipeline</b>"]
+        direction LR
+
+        subgraph BUILD_STAGE["<b>Build</b>"]
+            BUILD["<b>Build Job</b><br/>Node.js 20<br/>npm install<br/>npm run lint"]
+        end
+
+        subgraph TEST_STAGE["<b>Test - Fan Out</b>"]
+            direction TB
+            UNIT["<b>Unit</b><br/>Jest 70%"]
+            INTEGRATION["<b>Integration</b><br/>SuperTest"]
+            E2E["<b>E2E</b><br/>API Tests"]
+            SECURITY["<b>Security</b><br/>npm audit"]
+        end
+
+        subgraph DOCKER_STAGE["<b>Docker</b>"]
+            DOCKER["<b>Build Image</b><br/>Multi-stage<br/>Alpine Linux"]
+        end
+
+        subgraph DEPLOY_STAGE["<b>Deploy Pipeline</b>"]
+            direction TB
+            PUSH["<b>Push ACR</b>"]
+            DEP_DEV["<b>Deploy Dev</b>"]
+            DEP_STG["<b>Deploy Staging</b>"]
+            APPROVAL["<b>APPROVAL</b><br/>Manual Gate"]
+            DEP_PROD["<b>Deploy Prod</b>"]
+        end
+
+        BUILD --> UNIT & INTEGRATION & E2E & SECURITY
+        UNIT & INTEGRATION & E2E & SECURITY --> DOCKER
+        DOCKER --> PUSH
+        PUSH --> DEP_DEV --> DEP_STG --> APPROVAL --> DEP_PROD
+    end
+
+    subgraph AZURE["<b>AZURE CLOUD - East US Region</b>"]
+        direction TB
+
+        subgraph RG_DEV["<b>globomantics-robots-dev</b>"]
+            direction TB
+            ACR_D["<b>Container Registry</b><br/>Basic SKU"]
+            subgraph ENV_D["<b>Container Apps Env</b><br/>env-robot-api-dev"]
+                CA_D["<b>robot-api-dev</b><br/>0.25 CPU | 0.5Gi<br/>1 replica"]
+                INGRESS_D["<b>Ingress</b><br/>HTTPS :3000"]
+                PROBES_D["<b>Probes</b><br/>live | ready"]
+            end
+            LOG_D["<b>Azure Monitor</b>"]
+            ROLE_D["<b>AcrPull</b>"]
+            ACR_D -.->|"Pull"| CA_D
+            CA_D --> INGRESS_D
+            CA_D --> PROBES_D
+            CA_D -.-> LOG_D
+            CA_D -.-> ROLE_D -.-> ACR_D
+        end
+
+        subgraph RG_STG["<b>globomantics-robots-staging</b>"]
+            direction TB
+            ACR_S["<b>Container Registry</b><br/>Basic SKU"]
+            subgraph ENV_S["<b>Container Apps Env</b><br/>env-robot-api-staging"]
+                CA_S["<b>robot-api-staging</b><br/>0.5 CPU | 1Gi<br/>2 replicas"]
+                INGRESS_S["<b>Ingress</b><br/>HTTPS :3000"]
+                PROBES_S["<b>Probes</b><br/>live | ready"]
+            end
+            LOG_S["<b>Azure Monitor</b>"]
+            ROLE_S["<b>AcrPull</b>"]
+            ACR_S -.->|"Pull"| CA_S
+            CA_S --> INGRESS_S
+            CA_S --> PROBES_S
+            CA_S -.-> LOG_S
+            CA_S -.-> ROLE_S -.-> ACR_S
+        end
+
+        subgraph RG_PROD["<b>globomantics-robots-production</b>"]
+            direction TB
+            ACR_P["<b>Container Registry</b><br/>Premium SKU"]
+            subgraph ENV_P["<b>Container Apps Env</b><br/>env-robot-api-production"]
+                CA_P["<b>robot-api-production</b><br/>1 CPU | 2Gi"]
+                INGRESS_P["<b>Ingress</b><br/>HTTPS :3000<br/>CORS enabled"]
+                PROBES_P["<b>Probes</b><br/>live | ready"]
+                SCALE_P["<b>Auto-Scale</b><br/>2-10 replicas<br/>100 concurrent"]
+            end
+            LA_P["<b>Log Analytics</b><br/>30 day retention"]
+            ROLE_P["<b>AcrPull</b>"]
+            ACR_P -.->|"Pull"| CA_P
+            CA_P --> INGRESS_P
+            CA_P --> PROBES_P
+            CA_P --> SCALE_P
+            CA_P -.-> LA_P
+            CA_P -.-> ROLE_P -.-> ACR_P
+        end
+    end
+
+    subgraph EXTERNAL["<b>External Access</b>"]
+        direction TB
+        USERS(("<b>API Consumers</b><br/>Fleet Operators"))
+        MCP["<b>Schematica MCP</b><br/>AI Integration<br/>Port 3001"]
+        API["<b>Robot API</b><br/>/api/robots<br/>/api/metrics<br/>/api/health"]
+    end
+
+    DEP_DEV -->|"dev.bicepparam"| RG_DEV
+    DEP_STG -->|"staging.bicepparam"| RG_STG
+    DEP_PROD -->|"production.bicepparam"| RG_PROD
+
+    PUSH --> ACR_D & ACR_S & ACR_P
+
+    USERS -->|"HTTPS"| INGRESS_D
+    USERS -->|"HTTPS"| INGRESS_S
+    USERS -->|"HTTPS"| INGRESS_P
+
+    MCP -->|"REST"| INGRESS_D
+    API --> MCP
+
+    style BUILD fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style UNIT fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style INTEGRATION fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style E2E fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style SECURITY fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DOCKER fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style PUSH fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DEP_DEV fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DEP_STG fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DEP_PROD fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style APPROVAL fill:#D83B01,stroke:#A12C01,color:#fff,stroke-width:3px
+    style ACR_D fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    style ACR_S fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    style ACR_P fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    style CA_D fill:#107C10,stroke:#0B5A08,color:#fff,stroke-width:2px
+    style CA_S fill:#FF8C00,stroke:#CC7000,color:#fff,stroke-width:2px
+    style CA_P fill:#773B93,stroke:#5C2D91,color:#fff,stroke-width:2px
+    style INGRESS_D fill:#008272,stroke:#005A5A,color:#fff,stroke-width:2px
+    style INGRESS_S fill:#008272,stroke:#005A5A,color:#fff,stroke-width:2px
+    style INGRESS_P fill:#008272,stroke:#005A5A,color:#fff,stroke-width:2px
+    style PROBES_D fill:#00BCF2,stroke:#0078D4,color:#000,stroke-width:2px
+    style PROBES_S fill:#00BCF2,stroke:#0078D4,color:#000,stroke-width:2px
+    style PROBES_P fill:#00BCF2,stroke:#0078D4,color:#000,stroke-width:2px
+    style SCALE_P fill:#50E6FF,stroke:#0078D4,color:#000,stroke-width:2px
+    style LOG_D fill:#FFB900,stroke:#CC9300,color:#000,stroke-width:2px
+    style LOG_S fill:#FFB900,stroke:#CC9300,color:#000,stroke-width:2px
+    style LA_P fill:#FFB900,stroke:#CC9300,color:#000,stroke-width:2px
+    style ROLE_D fill:#5C2D91,stroke:#3B1D5C,color:#fff,stroke-width:2px
+    style ROLE_S fill:#5C2D91,stroke:#3B1D5C,color:#fff,stroke-width:2px
+    style ROLE_P fill:#5C2D91,stroke:#3B1D5C,color:#fff,stroke-width:2px
+    style USERS fill:#ffffff,stroke:#666666,color:#000,stroke-width:2px
+    style MCP fill:#ffffff,stroke:#0078D4,color:#000,stroke-width:2px
+    style API fill:#E6F3FF,stroke:#0078D4,color:#000,stroke-width:2px
+        </div>
+
+        <div class="info-cards">
+            <div class="info-card dev">
+                <h3>Development Environment</h3>
+                <ul>
+                    <li><b>Resource Group:</b> <code>globomantics-robots-dev</code></li>
+                    <li><b>Container App:</b> <code>robot-api-dev</code></li>
+                    <li><b>Resources:</b> 0.25 CPU cores, 0.5Gi memory</li>
+                    <li><b>Replicas:</b> 1 (fixed)</li>
+                    <li><b>ACR SKU:</b> Basic</li>
+                    <li><b>Logging:</b> Azure Monitor (managed)</li>
+                </ul>
+            </div>
+            <div class="info-card staging">
+                <h3>Staging Environment</h3>
+                <ul>
+                    <li><b>Resource Group:</b> <code>globomantics-robots-staging</code></li>
+                    <li><b>Container App:</b> <code>robot-api-staging</code></li>
+                    <li><b>Resources:</b> 0.5 CPU cores, 1Gi memory</li>
+                    <li><b>Replicas:</b> 2 (fixed)</li>
+                    <li><b>ACR SKU:</b> Basic</li>
+                    <li><b>Logging:</b> Azure Monitor (managed)</li>
+                </ul>
+            </div>
+            <div class="info-card prod">
+                <h3>Production Environment</h3>
+                <ul>
+                    <li><b>Resource Group:</b> <code>globomantics-robots-production</code></li>
+                    <li><b>Container App:</b> <code>robot-api-production</code></li>
+                    <li><b>Resources:</b> 1 CPU core, 2Gi memory</li>
+                    <li><b>Replicas:</b> 2-10 (auto-scale on 100 concurrent requests)</li>
+                    <li><b>ACR SKU:</b> Premium</li>
+                    <li><b>Logging:</b> Log Analytics Workspace (30 day retention)</li>
+                </ul>
+            </div>
+            <div class="info-card">
+                <h3>Container Configuration</h3>
+                <ul>
+                    <li><b>Base Image:</b> Alpine Linux (multi-stage build)</li>
+                    <li><b>Port:</b> 3000 (exposed via HTTPS ingress)</li>
+                    <li><b>Identity:</b> System Assigned Managed Identity</li>
+                    <li><b>Role:</b> AcrPull for container registry access</li>
+                    <li><b>Liveness Probe:</b> <code>/api/health/live</code> (30s period)</li>
+                    <li><b>Readiness Probe:</b> <code>/api/health/ready</code> (10s period)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #343434;"></div>
+                <span>CI/CD Pipeline</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #D83B01;"></div>
+                <span>Approval Gate</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #0078D4;"></div>
+                <span>Azure Container Registry</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #107C10;"></div>
+                <span>Development</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #FF8C00;"></div>
+                <span>Staging</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #773B93;"></div>
+                <span>Production</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #008272;"></div>
+                <span>HTTPS Ingress</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00BCF2;"></div>
+                <span>Health Probes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #50E6FF;"></div>
+                <span>Auto-Scaling</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #FFB900;"></div>
+                <span>Logging / Monitoring</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #5C2D91;"></div>
+                <span>Security / RBAC</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><b>Globomantics Robot Fleet API</b> - Advanced CircleCI Configuration Course</p>
+            <p>Infrastructure defined in <code>infra/main.bicep</code> | Deployed via <code>deploy.sh</code> to Azure Container Apps</p>
+            <p>Diagram source: <a href="azure-architecture.mmd">azure-architecture.mmd</a></p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                rankSpacing: 60,
+                nodeSpacing: 40
+            }
+        });
+    </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ Quick fixes for common issues during live demos.
 - [Slack Integration Issues](#slack-integration-issues)
 - [Azure/OIDC Issues](#azureoidc-issues)
 - [Local Development Issues](#local-development-issues)
+- [MCP Server Issues](#mcp-server-issues)
 - [Network Issues](#network-issues)
 - [Recovery Strategies](#recovery-strategies)
 
@@ -380,6 +381,123 @@ ls -la Dockerfile
 
 ---
 
+## MCP Server Issues
+
+### MCP Server Won't Start
+
+**Symptoms:** Error when running `npm start` in mcp-server directory.
+
+**Quick Fixes:**
+
+```bash
+# Ensure you're in the correct directory
+cd mcp-server
+
+# Clean install dependencies
+rm -rf node_modules package-lock.json
+npm install
+
+# Check Node.js version (needs 18+)
+node --version
+
+# Try starting with verbose output
+node src/index.js
+```
+
+### MCP Server Can't Connect to Robot API
+
+**Symptoms:** MCP tools return connection errors.
+
+**Quick Fixes:**
+
+1. **Verify Robot API is running:**
+
+   ```bash
+   curl http://localhost:3000/api/health
+   ```
+
+2. **Check environment variable:**
+
+   ```bash
+   # Start with explicit API URL
+   ROBOT_API_URL=http://localhost:3000 npm start
+   ```
+
+3. **Verify port 3000 is available:**
+
+   ```bash
+   lsof -i :3000
+   ```
+
+### MCP Port Already in Use
+
+**Symptoms:** Error "EADDRINUSE" when starting MCP server.
+
+**Quick Fixes:**
+
+```bash
+# Find what's using port 3001
+lsof -i :3001
+
+# Kill it
+kill -9 $(lsof -t -i :3001)
+
+# Or use different port
+MCP_PORT=3002 npm start
+```
+
+### Claude Not Connecting to MCP Server
+
+**Symptoms:** Claude can't see or use the robot management tools.
+
+**Quick Fixes:**
+
+1. **Verify MCP server is running:**
+
+   ```bash
+   curl http://localhost:3001/health
+   ```
+
+2. **Check Claude configuration:**
+
+   ```json
+   {
+     "mcpServers": {
+       "schematica": {
+         "url": "http://localhost:3001/mcp"
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude after configuration changes**
+
+### MCP Tools Returning Errors
+
+**Symptoms:** Tools work but return error messages.
+
+**Quick Fixes:**
+
+1. **Check Robot API response:**
+
+   ```bash
+   # Test the underlying API directly
+   curl http://localhost:3000/api/robots
+   ```
+
+2. **Check tool parameters:**
+   - `get_robot`, `update_robot`, `delete_robot` require `id` parameter
+   - `create_robot` requires `name` and `type` parameters
+
+3. **Run MCP server tests:**
+
+   ```bash
+   cd mcp-server
+   npm test
+   ```
+
+---
+
 ## Network Issues
 
 ### Behind Corporate Proxy
@@ -474,5 +592,7 @@ Print this for quick access during demos:
 ║  OIDC fails             → Check org/project IDs               ║
 ║  Tests failing          → rm -rf node_modules && npm install  ║
 ║  Too slow               → Switch to pre-recorded backup       ║
+║  MCP not connecting     → curl http://localhost:3001/health   ║
+║  MCP tools failing      → Check Robot API on port 3000        ║
 ╚═══════════════════════════════════════════════════════════════╝
 ```

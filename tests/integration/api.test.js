@@ -116,6 +116,74 @@ describe('API Integration Tests', () => {
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Validation failed');
     });
+
+    it('GET /api/robots?location=warehouse-1 should filter by location', async () => {
+      const response = await request(app).get('/api/robots?location=warehouse-1');
+
+      expect(response.status).toBe(200);
+      response.body.robots.forEach((robot) => {
+        expect(robot.location).toBe('warehouse-1');
+      });
+    });
+
+    it('PUT /api/robots/:id should update a robot', async () => {
+      const response = await request(app)
+        .put('/api/robots/rb-002')
+        .send({ status: 'maintenance', location: 'repair-bay' })
+        .set('Content-Type', 'application/json');
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('maintenance');
+    });
+
+    it('PUT /api/robots/:id should return 404 for missing robot', async () => {
+      const response = await request(app)
+        .put('/api/robots/rb-999')
+        .send({ status: 'active' })
+        .set('Content-Type', 'application/json');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Robot not found');
+    });
+
+    it('DELETE /api/robots/:id should decommission a robot', async () => {
+      // First create a robot to delete
+      const createRes = await request(app)
+        .post('/api/robots')
+        .send({ name: 'Delete Me Bot', type: 'temp' })
+        .set('Content-Type', 'application/json');
+
+      const response = await request(app).delete(`/api/robots/${createRes.body.id}`);
+      expect(response.status).toBe(204);
+    });
+
+    it('DELETE /api/robots/:id should return 404 for missing robot', async () => {
+      const response = await request(app).delete('/api/robots/rb-nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Robot not found');
+    });
+
+    it('POST /api/robots/:id/maintenance should schedule maintenance', async () => {
+      const response = await request(app)
+        .post('/api/robots/rb-001/maintenance')
+        .send({ type: 'repair', scheduledDate: '2025-02-01T10:00:00Z' })
+        .set('Content-Type', 'application/json');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('robotId', 'rb-001');
+      expect(response.body).toHaveProperty('status', 'scheduled');
+    });
+
+    it('POST /api/robots/:id/maintenance should return 404 for missing robot', async () => {
+      const response = await request(app)
+        .post('/api/robots/rb-999/maintenance')
+        .send({ type: 'repair' })
+        .set('Content-Type', 'application/json');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Robot not found');
+    });
   });
 
   describe('Metrics Endpoints', () => {

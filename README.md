@@ -129,6 +129,10 @@ advanced-circleci/
 │   └── environments/           # Environment parameters
 ├── demos/                      # Demo scripts per module
 ├── docs/                       # Documentation
+├── mcp-server/                 # Schematica MCP Server
+│   ├── src/                    # Server source code
+│   ├── package.json            # MCP dependencies
+│   └── README.md               # MCP server documentation
 ├── Dockerfile                  # Container build
 └── Makefile                    # Development commands
 ```
@@ -159,6 +163,49 @@ cd infra
 
 See [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) for the complete deployment guide.
 
+## Schematica MCP Server
+
+The repository includes **Schematica**, an MCP (Model Context Protocol) server that enables AI assistants like Claude to manage the robot fleet through natural language.
+
+### Quick Start
+
+```bash
+# Terminal 1: Start the Robot API
+npm run dev
+
+# Terminal 2: Start the MCP server
+cd mcp-server
+npm install
+npm start
+```
+
+### Available Tools
+
+| Tool | Description |
+| --- | --- |
+| `list_robots` | List all robots with optional status/location filters |
+| `get_robot` | Get details of a specific robot by ID |
+| `create_robot` | Create a new robot in the fleet |
+| `update_robot` | Update robot properties (name, status, location, battery) |
+| `delete_robot` | Decommission a robot from the fleet |
+| `schedule_maintenance` | Schedule maintenance for a robot |
+
+### Configure Claude
+
+Add to your Claude configuration:
+
+```json
+{
+  "mcpServers": {
+    "schematica": {
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+See [mcp-server/README.md](mcp-server/README.md) for the complete MCP server documentation.
+
 ### Azure Resources Created
 
 | Resource | Purpose |
@@ -176,6 +223,7 @@ See [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) for the complete deployment 
 | [AZURE-DEPLOYMENT.md](docs/AZURE-DEPLOYMENT.md) | Azure deployment and CI/CD setup |
 | [COURSE_OUTLINE.md](COURSE_OUTLINE.md) | Course structure and learning objectives |
 | [LEARNING-OBJECTIVES.md](docs/LEARNING-OBJECTIVES.md) | Detailed learning objectives |
+| [mcp-server/README.md](mcp-server/README.md) | Schematica MCP Server documentation |
 
 ## Prerequisites
 

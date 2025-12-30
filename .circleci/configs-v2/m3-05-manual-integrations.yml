@@ -1,0 +1,207 @@
+# ============================================================================
+# MODULE 3: ANTI-PATTERN - Manual Integrations (No Orbs)
+# ============================================================================
+# This config does everything manually:
+#   - Slack notifications via raw curl
+#   - Azure CLI installed and configured by hand
+#   - No ecosystem leverage, reinventing solved problems
+#
+# PAIN POINTS:
+#   - 20+ lines for Slack notification vs 3 with orb
+#   - Azure auth logic duplicated and fragile
+#   - No version management, API changes break things
+#   - Maintenance burden on YOUR team, not orb maintainers
+# ============================================================================
+
+version: 2.1
+
+parameters:
+  node-version:
+    type: string
+    default: "20.18"
+
+executors:
+  node-builder:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+    working_directory: ~/project
+
+commands:
+  setup-deps:
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+  # ANTI-PATTERN: Manual Slack notification - fragile and verbose
+  notify-slack-manual:
+    parameters:
+      message:
+        type: string
+      status:
+        type: enum
+        enum: [success, failure, pending]
+    steps:
+      - run:
+          name: Send Slack notification (manual)
+          command: |
+            # This is what you're maintaining instead of using an orb
+            if [ -z "$SLACK_WEBHOOK_URL" ]; then
+              echo "SLACK_WEBHOOK_URL not set, skipping notification"
+              exit 0
+            fi
+
+            COLOR="good"
+            if [ "<< parameters.status >>" = "failure" ]; then
+              COLOR="danger"
+            elif [ "<< parameters.status >>" = "pending" ]; then
+              COLOR="#FFA500"
+            fi
+
+            curl -X POST "$SLACK_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"attachments\": [{
+                  \"color\": \"$COLOR\",
+                  \"title\": \"CircleCI Build #${CIRCLE_BUILD_NUM}\",
+                  \"text\": \"<< parameters.message >>\",
+                  \"fields\": [
+                    {\"title\": \"Branch\", \"value\": \"${CIRCLE_BRANCH}\", \"short\": true},
+                    {\"title\": \"Commit\", \"value\": \"${CIRCLE_SHA1:0:7}\", \"short\": true}
+                  ],
+                  \"footer\": \"Globomantics Robot API\",
+                  \"ts\": $(date +%s)
+                }]
+              }"
+
+  # ANTI-PATTERN: Manual Azure CLI setup
+  setup-azure-manual:
+    steps:
+      - run:
+          name: Install Azure CLI (manual)
+          command: |
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      - run:
+          name: Azure login (manual - using service principal)
+          command: |
+            # Fragile: depends on specific env var names, no OIDC
+            az login --service-principal \
+              --username "$AZURE_CLIENT_ID" \
+              --password "$AZURE_CLIENT_SECRET" \
+              --tenant "$AZURE_TENANT_ID"
+            az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+jobs:
+  build:
+    executor: node-builder
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+      - run: npm ci
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+      - notify-slack-manual:
+          message: "Build completed for ${CIRCLE_BRANCH}"
+          status: success
+
+  test:
+    executor: node-builder
+    steps:
+      - setup-deps
+      - run: npm test
+      - store_test_results:
+          path: test-results
+      - notify-slack-manual:
+          message: "Tests passed on ${CIRCLE_BRANCH}"
+          status: success
+
+  # Manual Azure deployment - verbose and error-prone
+  deploy:
+    executor: node-builder
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+    steps:
+      - setup-deps
+      - setup-azure-manual
+      - run:
+          name: Build and push container image
+          command: |
+            # Manual ACR login
+            az acr login --name "$ACR_NAME"
+
+            # Build and tag
+            docker build -t "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}" .
+            docker push "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}"
+      - run:
+          name: Deploy to << parameters.environment >>
+          command: |
+            az containerapp update \
+              --name "robot-api-<< parameters.environment >>" \
+              --resource-group "rg-globomantics-<< parameters.environment >>" \
+              --image "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}"
+
+            echo "Deployed to << parameters.environment >>"
+      - notify-slack-manual:
+          message: "Deployed to << parameters.environment >> environment"
+          status: success
+
+workflows:
+  build-test-deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      - test:
+          requires:
+            - build
+
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          requires:
+            - test
+
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          requires:
+            - deploy-dev
+
+      # No approval gate here - that's another anti-pattern!
+      - deploy:
+          name: deploy-prod
+          environment: prod
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# WHAT'S WRONG HERE (Module 3 Learning Points):
+#
+# 1. MANUAL SLACK: 25+ lines vs 3 lines with circleci/slack orb
+# 2. MANUAL AZURE: Installing CLI, handling auth, no OIDC support
+# 3. NO VERSION PINNING: Curl installs "latest" - could break anytime
+# 4. NO APPROVAL GATE: Production deploy happens automatically!
+# 5. MAINTENANCE BURDEN: API changes = YOUR problem
+#
+# The orb ecosystem exists to solve these exact problems.
+# Next config shows the same functionality with proper orb usage.
+# ============================================================================

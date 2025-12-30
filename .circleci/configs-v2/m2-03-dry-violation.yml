@@ -1,0 +1,293 @@
+# ============================================================================
+# MODULE 2: ANTI-PATTERN - DRY Violation (The "Before" State)
+# ============================================================================
+#
+# WORKFLOW VISUALIZATION:
+#                      ┌─► lint ────────────┐
+#                      │                    │
+#   build ────────────►├─► test-unit ───────┼─► deploy-dev ─► deploy-staging ─► deploy-prod
+#                      │                    │
+#                      └─► test-integration─┘
+#
+# WHAT YOU'LL LEARN (Anti-Patterns to Avoid):
+#   1. Copy-paste configuration leads to maintenance nightmares
+#   2. No executors = Docker config repeated 7 times
+#   3. No commands = Setup steps duplicated everywhere
+#   4. No job parameters = 3 nearly identical deploy jobs
+#   5. Docker image rebuilt in each deploy (wasted compute!)
+#
+# PAIN POINTS (count them as you read):
+#   - "cimg/node:20.18" appears 7 times
+#   - "working_directory: ~/project" appears 7 times
+#   - "checkout + attach_workspace" pattern appears 6 times
+#   - "setup_remote_docker" appears 4 times
+#   - "docker build" command appears 4 times
+#
+# Compare this to m2-04-parameterized-dry.yml to see the solution!
+# ============================================================================
+
+version: 2.1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # BUILD JOB: Install deps, build app, create Docker image
+  # ---------------------------------------------------------------------------
+  build:
+    docker:
+      - image: cimg/node:20.18    # Repeated in EVERY job - no executor!
+    resource_class: medium         # 2 vCPU, 4GB - needed for Docker build
+    working_directory: ~/project   # Repeated in EVERY job
+    steps:
+      - checkout
+
+      # Restore cached dependencies for faster builds
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
+      # Cache node_modules for future builds
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+
+      - run:
+          name: Build application
+          command: npm run build
+
+      # Enable Docker commands (spins up remote Docker daemon)
+      - setup_remote_docker:
+          version: docker24
+          docker_layer_caching: true    # Paid feature - caches layers
+
+      # REAL WORK: Actually build the Docker image
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t globomantics/robot-api:${CIRCLE_SHA1:0:7} .
+            docker images | grep globomantics
+
+      # Share build artifacts with downstream jobs
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+
+  # ---------------------------------------------------------------------------
+  # LINT JOB: Check code quality
+  # ---------------------------------------------------------------------------
+  lint:
+    docker:
+      - image: cimg/node:20.18    # DUPLICATED - same as build
+    resource_class: small          # 1 vCPU, 2GB - cheaper for simple jobs
+    working_directory: ~/project   # DUPLICATED
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run linter
+          command: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # TEST JOBS: Unit and integration tests (notice the duplication!)
+  # ---------------------------------------------------------------------------
+  test-unit:
+    docker:
+      - image: cimg/node:20.18    # DUPLICATED again
+    resource_class: small          # 1 vCPU, 2GB - tests don't need much
+    working_directory: ~/project   # DUPLICATED
+    steps:
+      - checkout                   # Same setup steps...
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run unit tests
+          command: npm run test:unit
+      - store_test_results:
+          path: test-results
+
+  test-integration:
+    docker:
+      - image: cimg/node:20.18    # DUPLICATED yet again
+    resource_class: small          # 1 vCPU, 2GB - tests don't need much
+    working_directory: ~/project   # DUPLICATED
+    steps:
+      - checkout                   # Same setup steps...
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run integration tests
+          command: npm run test:integration
+      - store_test_results:
+          path: test-results
+
+  # ---------------------------------------------------------------------------
+  # THE DRY VIOLATION: Three nearly identical deploy jobs
+  # Only the environment name and replica count differ!
+  # ---------------------------------------------------------------------------
+  deploy-dev:
+    docker:
+      - image: cimg/node:20.18    # Same image, 5th time
+    resource_class: medium         # 2 vCPU, 4GB - needed for Docker build
+    working_directory: ~/project
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+      # Same Docker setup repeated in each deploy job
+      - setup_remote_docker:
+          version: docker24
+
+      # REAL WORK: Rebuild image (no layer cache between jobs)
+      - run:
+          name: Build Docker image
+          command: docker build -t globomantics/robot-api:${CIRCLE_SHA1:0:7} .
+
+      - run:
+          name: Deploy to dev
+          command: |
+            echo "=========================================="
+            echo "  DEPLOYING TO DEV"
+            echo "=========================================="
+            echo "  Image: globomantics/robot-api:${CIRCLE_SHA1:0:7}"
+            echo "  Replicas: 1"
+            echo "=========================================="
+            # Real deploy: docker push, then az containerapp update
+            echo "DEV deployment complete!"
+
+  deploy-staging:
+    docker:
+      - image: cimg/node:20.18    # Same as deploy-dev
+    resource_class: medium         # 2 vCPU, 4GB - needed for Docker build
+    working_directory: ~/project   # Same as deploy-dev
+    steps:
+      - checkout                   # Same steps...
+      - attach_workspace:
+          at: .
+
+      - setup_remote_docker:       # Same Docker setup...
+          version: docker24
+
+      - run:
+          name: Build Docker image  # Rebuilding AGAIN - wasteful!
+          command: docker build -t globomantics/robot-api:${CIRCLE_SHA1:0:7} .
+
+      - run:
+          name: Deploy to staging
+          command: |
+            echo "=========================================="
+            echo "  DEPLOYING TO STAGING"              # Only THIS changes
+            echo "=========================================="
+            echo "  Image: globomantics/robot-api:${CIRCLE_SHA1:0:7}"
+            echo "  Replicas: 2"                        # And this
+            echo "=========================================="
+            echo "STAGING deployment complete!"
+
+  deploy-prod:
+    docker:
+      - image: cimg/node:20.18    # Same as others
+    resource_class: medium         # 2 vCPU, 4GB - needed for Docker build
+    working_directory: ~/project   # Same as others
+    steps:
+      - checkout                   # Same steps...
+      - attach_workspace:
+          at: .
+
+      - setup_remote_docker:       # Same Docker setup...
+          version: docker24
+
+      - run:
+          name: Build Docker image  # Rebuilding AGAIN - 3rd time!
+          command: docker build -t globomantics/robot-api:${CIRCLE_SHA1:0:7} .
+
+      - run:
+          name: Deploy to prod
+          command: |
+            echo "=========================================="
+            echo "  DEPLOYING TO PROD"                  # Only THIS changes
+            echo "=========================================="
+            echo "  Image: globomantics/robot-api:${CIRCLE_SHA1:0:7}"
+            echo "  Replicas: 4"                        # And this
+            echo "=========================================="
+            echo "PROD deployment complete!"
+
+# =============================================================================
+# WORKFLOW: Orchestrates job execution order
+# =============================================================================
+workflows:
+  build-test-deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      # Fan-out: These 3 jobs run in parallel after build
+      - lint:
+          requires:
+            - build
+
+      - test-unit:
+          requires:
+            - build
+
+      - test-integration:
+          requires:
+            - build
+
+      # Fan-in: Wait for all tests, then deploy sequentially
+      - deploy-dev:
+          requires:
+            - lint
+            - test-unit
+            - test-integration
+
+      - deploy-staging:
+          requires:
+            - deploy-dev
+
+      - deploy-prod:
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# TEACHING SUMMARY: What's Wrong Here?
+# ============================================================================
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  ANTI-PATTERN                    │  CONSEQUENCE                         │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │  No executors                    │  Docker config repeated 7x           │
+# │  No commands                     │  Setup steps copied everywhere       │
+# │  No job parameters               │  3 deploy jobs that are 90% same     │
+# │  Docker build in each deploy     │  Wasted compute (no layer caching)   │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# THE MAINTENANCE TEST:
+#   Q: "How many lines do I change to upgrade Node from 20.18 to 22?"
+#   A: In THIS config = 7 places (error-prone!)
+#   A: In the DRY config = 1 place (the executor)
+#
+# RESOURCE CLASSES (credit consumption per minute):
+#   ┌──────────┬────────┬────────┬──────────────────────────┐
+#   │ Class    │ vCPU   │ RAM    │ Credits/min              │
+#   ├──────────┼────────┼────────┼──────────────────────────┤
+#   │ small    │ 1      │ 2 GB   │ 5  (lint, test)          │
+#   │ medium   │ 2      │ 4 GB   │ 10 (build, Docker)       │
+#   │ large    │ 4      │ 8 GB   │ 20 (avoid if possible!)  │
+#   └──────────┴────────┴────────┴──────────────────────────┘
+#
+# NEXT STEP: See m2-04-parameterized-dry.yml for the refactored version!
+# ============================================================================

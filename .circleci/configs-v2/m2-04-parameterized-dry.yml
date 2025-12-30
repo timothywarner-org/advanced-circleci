@@ -1,0 +1,402 @@
+# ============================================================================
+# MODULE 2: Configuration Reuse with Parameters (The "After" State)
+# ============================================================================
+#
+# WORKFLOW VISUALIZATION (with approval gate):
+#                      ┌─► lint ────────────┐
+#                      │                    │
+#   build ────────────►├─► test-unit ───────┼─► deploy-dev ─► deploy-staging ─► [approve] ─► deploy-prod
+#                      │                    │
+#                      └─► test-integration─┘
+#
+# WHAT YOU'LL LEARN (DRY Patterns):
+#   1. PIPELINE PARAMETERS - Control behavior at trigger time
+#   2. EXECUTORS - Define environment once, reference everywhere
+#   3. COMMANDS - Reusable step sequences (like functions)
+#   4. JOB PARAMETERS - One job definition, multiple invocations
+#   5. CONDITIONAL WORKFLOWS - Toggle features via parameters
+#
+# BEFORE vs AFTER COMPARISON:
+#   ┌────────────────────────┬─────────────────┬─────────────────┐
+#   │ Metric                 │ Anti-Pattern    │ This Config     │
+#   ├────────────────────────┼─────────────────┼─────────────────┤
+#   │ Docker image lines     │ 7 occurrences   │ 2 (executors)   │
+#   │ Setup step copies      │ 6 occurrences   │ 1 (command)     │
+#   │ Deploy job definitions │ 3 separate jobs │ 1 parameterized │
+#   │ Node version change    │ Edit 7 places   │ Edit 1 place    │
+#   └────────────────────────┴─────────────────┴─────────────────┘
+#
+# ============================================================================
+
+version: 2.1
+
+# =============================================================================
+# PIPELINE PARAMETERS: Control workflow behavior at trigger time
+# These are set when the pipeline is triggered (API, UI, or scheduled)
+# =============================================================================
+parameters:
+  node-version:
+    type: string
+    default: "20.18"
+    description: Node.js version for all jobs  # Change once, affects everywhere
+
+  skip-tests:
+    type: boolean
+    default: false
+    description: Skip test jobs for emergency deploys
+
+  require-approval:
+    type: boolean
+    default: true
+    description: Require manual approval before prod deploy (false = auto-deploy)
+
+# =============================================================================
+# EXECUTORS: Define environment once, reference by name
+# =============================================================================
+# TEACHING POINT: Executors are like "classes" for job environments.
+# Define docker image, resource_class, working_directory ONCE here,
+# then reference by name in jobs. Change Node version? One place!
+# =============================================================================
+executors:
+  # For lightweight jobs (lint, test) - saves credits!
+  node-small:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+    resource_class: small          # 1 vCPU, 2GB - 5 credits/min
+    working_directory: ~/project
+
+  # For Docker builds and deploys - needs more resources
+  node-builder:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+    resource_class: medium         # 2 vCPU, 4GB - 10 credits/min
+    working_directory: ~/project
+
+# =============================================================================
+# COMMANDS: Reusable step sequences (like functions for steps)
+# =============================================================================
+# TEACHING POINT: Commands are like functions for steps. They can:
+#   - Accept parameters (with types: string, boolean, enum, integer)
+#   - Be called from any job with: - command-name
+#   - Reduce copy-paste and ensure consistency
+# =============================================================================
+commands:
+  # Combines checkout + attach_workspace - used in most jobs
+  setup-deps:
+    description: Checkout and restore dependencies from workspace
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+  # Parameterized test runner - one command handles unit/integration
+  run-tests:
+    description: Run test suite with results storage
+    parameters:
+      test-type:
+        type: string
+    steps:
+      - run:
+          name: Run << parameters.test-type >> tests
+          command: npm run test:<< parameters.test-type >>
+      - store_test_results:
+          path: test-results
+
+  # Docker build command - called once, not repeated!
+  build-image:
+    description: Build and tag Docker image
+    steps:
+      - setup_remote_docker:
+          version: docker24
+          docker_layer_caching: true
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t globomantics/robot-api:${CIRCLE_SHA1:0:7} .
+            docker images | grep globomantics
+
+  # Parameterized deploy - one command handles all environments
+  deploy-app:
+    description: Deploy to specified environment
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+      replicas:
+        type: integer
+        default: 1
+    steps:
+      - setup_remote_docker:
+          version: docker24
+      - run:
+          name: Build and deploy to << parameters.environment >>
+          command: |
+            # Build image (would use cached layers in real scenario)
+            docker build -t globomantics/robot-api:${CIRCLE_SHA1:0:7} .
+
+            echo "==========================================="
+            echo "  DEPLOYING TO << parameters.environment >>"
+            echo "==========================================="
+            echo "  Image:    globomantics/robot-api:${CIRCLE_SHA1:0:7}"
+            echo "  Replicas: << parameters.replicas >>"
+            echo "  Branch:   ${CIRCLE_BRANCH}"
+            echo "==========================================="
+            # Real deploy: docker push, then az containerapp update
+            echo "Deployment complete!"
+
+# =============================================================================
+# JOBS: Use executors and commands, accept parameters
+# =============================================================================
+# TEACHING POINT: Notice how clean these jobs are! Each job:
+#   - References an executor by name (no docker config here)
+#   - Calls commands instead of repeating steps
+#   - Accepts parameters for variations (test-type, environment)
+#
+# The deploy job is called 3 times in the workflow with different params!
+# =============================================================================
+jobs:
+  build:
+    executor: node-builder    # Reference executor by name
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+
+      - run:
+          name: Build application
+          command: npm run build
+
+      # REAL WORK: Build Docker image once in the build job
+      - build-image    # Uses our reusable command!
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+
+  lint:
+    executor: node-small           # Smaller executor saves credits!
+    steps:
+      - setup-deps    # Reusable command - 2 steps in 1 line
+      - run:
+          name: Run linter
+          command: npm run lint
+
+  # ONE test job with parameter - replaces test-unit AND test-integration
+  test:
+    executor: node-small           # Tests don't need much compute
+    parameters:
+      test-type:
+        type: enum
+        enum: [unit, integration]
+    steps:
+      - setup-deps
+      - run-tests:
+          test-type: << parameters.test-type >>
+
+  # ONE deploy job with parameters - replaces 3 separate jobs!
+  deploy:
+    executor: node-builder
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+      replicas:
+        type: integer
+        default: 1
+    steps:
+      - setup-deps
+      - deploy-app:
+          environment: << parameters.environment >>
+          replicas: << parameters.replicas >>
+
+# =============================================================================
+# WORKFLOWS: Invoke parameterized jobs with different values
+# =============================================================================
+# TEACHING POINT: This is where job parameters shine!
+#   - Same "test" job called twice: once with unit, once with integration
+#   - Same "deploy" job called 3 times: dev, staging, prod
+#   - "name:" gives each invocation a unique display name in the UI
+#
+# CONDITIONAL WORKFLOWS: when/unless toggles entire workflows
+#   - when: << pipeline.parameters.require-approval >> = runs if true
+#   - unless: << pipeline.parameters.require-approval >> = runs if false
+#   - Only ONE workflow executes per pipeline run
+# =============================================================================
+workflows:
+  # ---------------------------------------------------------------------------
+  # WORKFLOW 1: With approval gate before prod (default)
+  # ---------------------------------------------------------------------------
+  build-test-deploy:
+    when: << pipeline.parameters.require-approval >>
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      # Fan-out: parallel jobs after build
+      - lint:
+          requires:
+            - build
+
+      # Same job, different parameter values = test-unit and test-integration
+      - test:
+          name: test-unit         # Display name in UI
+          test-type: unit         # Parameter value
+          requires:
+            - build
+
+      - test:
+          name: test-integration
+          test-type: integration
+          requires:
+            - build
+
+      # Fan-in: deploy through environments
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          replicas: 1
+          requires:
+            - lint
+            - test-unit
+            - test-integration
+
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          replicas: 2
+          requires:
+            - deploy-dev
+
+      # APPROVAL GATE: Pauses for manual approval before prod
+      # type: approval = special job, no compute cost while waiting
+      - approve-prod:
+          type: approval
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+      - deploy:
+          name: deploy-prod
+          environment: prod
+          replicas: 4
+          requires:
+            - approve-prod
+          filters:
+            branches:
+              only: main
+
+  # ---------------------------------------------------------------------------
+  # WORKFLOW 2: Auto-deploy to prod (when require-approval=false)
+  # ---------------------------------------------------------------------------
+  build-test-deploy-auto:
+    unless: << pipeline.parameters.require-approval >>
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      - lint:
+          requires:
+            - build
+
+      - test:
+          name: test-unit
+          test-type: unit
+          requires:
+            - build
+
+      - test:
+          name: test-integration
+          test-type: integration
+          requires:
+            - build
+
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          replicas: 1
+          requires:
+            - lint
+            - test-unit
+            - test-integration
+
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          replicas: 2
+          requires:
+            - deploy-dev
+
+      # No approval gate - deploys directly after staging
+      - deploy:
+          name: deploy-prod
+          environment: prod
+          replicas: 4
+          requires:
+            - deploy-staging
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# TEACHING SUMMARY: DRY Patterns Demonstrated
+# ============================================================================
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  PATTERN              │  SYNTAX                     │  BENEFIT          │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │  Pipeline Parameters  │  << pipeline.parameters.X >> │  Trigger-time control │
+# │  Executors            │  executor: node-builder      │  Env defined once     │
+# │  Commands             │  - setup-deps                │  Steps as functions   │
+# │  Job Parameters       │  test-type: unit             │  One job, many uses   │
+# │  Conditional Workflow │  when: << param >>           │  Toggle features      │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# PARAMETER TYPES QUICK REFERENCE:
+#   - string:  Free-form text (e.g., node-version: "20.18")
+#   - boolean: true/false flags (e.g., skip-tests: false)
+#   - enum:    Fixed choices (e.g., environment: [dev, staging, prod])
+#   - integer: Numbers (e.g., replicas: 4)
+#
+# PARAMETER SCOPE:
+#   - Pipeline params: Set at trigger time, read-only during execution
+#   - Job params: Set in workflow, different per job invocation
+#   - Command params: Set when calling command from a job
+#
+# CREDIT-SAVING TIPS:
+#   - Use node-small (5 credits/min) for lint/test jobs
+#   - Use node-builder (10 credits/min) only when Docker is needed
+#   - Approval gates have ZERO compute cost while waiting
+#
+# API TRIGGER EXAMPLES:
+#   # Skip approval gate for emergency deploy:
+#   curl -X POST https://circleci.com/api/v2/project/gh/OWNER/REPO/pipeline \
+#     -H "Circle-Token: $TOKEN" -H "Content-Type: application/json" \
+#     -d '{"parameters": {"require-approval": false}}'
+#
+#   # Change Node version at trigger time:
+#   curl -X POST ... -d '{"parameters": {"node-version": "22"}}'
+#
+# ============================================================================

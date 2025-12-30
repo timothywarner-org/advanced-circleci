@@ -1,0 +1,331 @@
+# ============================================================================
+# CAPSTONE: Production-Ready Globomantics Robot Fleet API Pipeline
+# ============================================================================
+# Combines all course concepts:
+#   M1: Fan-out/fan-in workflows, branch filters, approval gates
+#   M2: Pipeline params, job params, commands, executors
+#   M3: Orbs (node, slack, azure-cli), OIDC auth, version pinning
+#
+# WORKFLOW:
+#   build → [lint, unit, integration, e2e] → deploy-dev → deploy-staging
+#                                                              ↓
+#                                               [APPROVAL] → deploy-prod
+# ============================================================================
+
+version: 2.1
+
+# ============================================================================
+# ORBS (M3): Ecosystem leverage with exact version pinning
+# ============================================================================
+orbs:
+  node: circleci/node@7.2.1
+  slack: circleci/slack@6.1.2
+  azure-cli: circleci/azure-cli@1.3.2
+
+# ============================================================================
+# PIPELINE PARAMETERS (M2): Top-level configuration control
+# ============================================================================
+parameters:
+  node-version:
+    type: string
+    default: "20.18"
+
+  skip-tests:
+    type: boolean
+    default: false
+    description: Emergency deploy bypass (use sparingly!)
+
+  deploy-env:
+    type: enum
+    enum: [dev, staging, prod, all]
+    default: all
+
+# ============================================================================
+# EXECUTORS (M2): Reusable environment definitions
+# ============================================================================
+executors:
+  node-runner:
+    docker:
+      - image: cimg/node:<< pipeline.parameters.node-version >>
+    working_directory: ~/project
+    resource_class: medium
+
+# ============================================================================
+# COMMANDS (M2): Reusable step sequences
+# ============================================================================
+commands:
+  setup-workspace:
+    description: Attach workspace with built artifacts
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+
+  run-tests:
+    description: Execute test suite with results storage
+    parameters:
+      suite:
+        type: enum
+        enum: [unit, integration, e2e]
+    steps:
+      - run:
+          name: Run << parameters.suite >> tests
+          command: npm run test:<< parameters.suite >>
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage
+          destination: << parameters.suite >>-coverage
+
+  deploy-container-app:
+    description: Build and deploy to Azure Container Apps
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+      resource-group:
+        type: string
+      replicas:
+        type: integer
+        default: 1
+    steps:
+      - run:
+          name: Build and push container image
+          command: |
+            az acr login --name "$ACR_NAME"
+            docker build -t "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}" .
+            docker push "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}"
+      - run:
+          name: Deploy to << parameters.environment >>
+          command: |
+            az containerapp update \
+              --name "robot-api-<< parameters.environment >>" \
+              --resource-group "<< parameters.resource-group >>" \
+              --image "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}" \
+              --min-replicas << parameters.replicas >> \
+              --max-replicas << parameters.replicas >>
+
+            FQDN=$(az containerapp show \
+              --name "robot-api-<< parameters.environment >>" \
+              --resource-group "<< parameters.resource-group >>" \
+              --query "properties.configuration.ingress.fqdn" -o tsv)
+
+            echo "Deployed to https://$FQDN"
+
+# ============================================================================
+# JOBS: Parameterized, using executors and commands
+# ============================================================================
+jobs:
+  build:
+    executor: node-runner
+    steps:
+      - checkout
+      - node/install-packages
+      - run:
+          name: Build application
+          command: npm run build
+      - run:
+          name: Lint code
+          command: npm run lint
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+      - slack/notify:
+          event: fail
+          template: basic_fail_1
+
+  # Parameterized test job (M2) - one definition, multiple invocations
+  test:
+    executor: node-runner
+    parameters:
+      suite:
+        type: enum
+        enum: [unit, integration, e2e]
+    steps:
+      - setup-workspace
+      - run-tests:
+          suite: << parameters.suite >>
+
+  security-scan:
+    executor: node-runner
+    steps:
+      - setup-workspace
+      - run:
+          name: Run security audit
+          command: npm run security || true  # Don't fail on advisories
+      - run:
+          name: Check for secrets
+          command: |
+            # Simple secret detection
+            if grep -rE "(password|secret|api_key)\s*[:=]" src/; then
+              echo "Potential secrets found!"
+              exit 1
+            fi
+            echo "No secrets detected"
+
+  # Parameterized deploy job (M2) - replaces 3 separate jobs
+  deploy:
+    executor: azure-cli/azure-docker
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+      resource-group:
+        type: string
+      replicas:
+        type: integer
+        default: 1
+    steps:
+      - setup-workspace
+      - azure-cli/install
+      - run:
+          name: Login to Azure with OIDC
+          command: |
+            az login \
+              --service-principal \
+              --user "${AZURE_CLIENT_ID}" \
+              --tenant "${AZURE_TENANT_ID}" \
+              --federated-token "${CIRCLE_OIDC_TOKEN}"
+            az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+      - deploy-container-app:
+          environment: << parameters.environment >>
+          resource-group: << parameters.resource-group >>
+          replicas: << parameters.replicas >>
+      - slack/notify:
+          event: pass
+          template: success_tagged_deploy_1
+
+# ============================================================================
+# WORKFLOWS (M1): Fan-out/fan-in with filters and approvals
+# ============================================================================
+workflows:
+  build-test-deploy:
+    jobs:
+      # BUILD: Entry point
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+          context: slack-secrets
+
+      # FAN-OUT (M1): Parallel test execution after build
+      - test:
+          name: test-unit
+          suite: unit
+          requires:
+            - build
+
+      - test:
+          name: test-integration
+          suite: integration
+          requires:
+            - build
+
+      - test:
+          name: test-e2e
+          suite: e2e
+          requires:
+            - build
+
+      - security-scan:
+          requires:
+            - build
+
+      # FAN-IN (M1): All tests must pass before deployment
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          resource-group: rg-globomantics-dev
+          replicas: 1
+          requires:
+            - test-unit
+            - test-integration
+            - test-e2e
+            - security-scan
+          context:
+            - azure-oidc-dev
+            - slack-secrets
+
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          resource-group: rg-globomantics-staging
+          replicas: 2
+          requires:
+            - deploy-dev
+          context:
+            - azure-oidc-staging
+            - slack-secrets
+
+      # APPROVAL GATE (M1/M3): Human sign-off before production
+      - slack/on-hold:
+          context: slack-secrets
+          requires:
+            - deploy-staging
+
+      - approve-production:
+          type: approval
+          requires:
+            - deploy-staging
+            - slack/on-hold
+
+      # PRODUCTION: Only after approval, only on main
+      - deploy:
+          name: deploy-prod
+          environment: prod
+          resource-group: rg-globomantics-prod
+          replicas: 4
+          requires:
+            - approve-production
+          context:
+            - azure-oidc-prod
+            - slack-secrets
+          filters:
+            branches:
+              only: main
+
+  # SCHEDULED WORKFLOW (M1): Nightly security scans
+  nightly-security:
+    triggers:
+      - schedule:
+          cron: "0 2 * * *"
+          filters:
+            branches:
+              only: main
+    jobs:
+      - build:
+          context: slack-secrets
+      - security-scan:
+          requires:
+            - build
+
+# ============================================================================
+# COURSE CONCEPTS DEMONSTRATED:
+#
+# MODULE 1 - Workflow Orchestration:
+#   ✓ requires keyword for job dependencies
+#   ✓ Fan-out: build → 4 parallel test/scan jobs
+#   ✓ Fan-in: all tests → deploy-dev
+#   ✓ Branch filters (main, feature/*)
+#   ✓ Approval gates (type: approval)
+#   ✓ Scheduled workflows (nightly-security)
+#
+# MODULE 2 - Configuration Reuse:
+#   ✓ Pipeline parameters (node-version, skip-tests, deploy-env)
+#   ✓ Executors (node-runner)
+#   ✓ Commands (setup-workspace, run-tests, deploy-container-app)
+#   ✓ Job parameters (test.suite, deploy.environment)
+#   ✓ DRY: One test job × 3 invocations, one deploy job × 3 invocations
+#
+# MODULE 3 - Orbs Integration:
+#   ✓ circleci/node@5.3.0 (caching, install)
+#   ✓ circleci/slack@4.15.0 (notifications)
+#   ✓ circleci/azure-cli@1.3.2 (Azure CLI install)
+#   ✓ OIDC authentication using az login with federated token
+#   ✓ Version pinning (exact versions for production)
+#   ✓ Contexts for secrets management
+# ============================================================================

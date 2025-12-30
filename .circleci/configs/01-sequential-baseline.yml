@@ -110,7 +110,7 @@ jobs:
             echo "║     DEPLOYING ROBOT FLEET API          ║"
             echo "╠════════════════════════════════════════╣"
             echo "║  Environment: production               ║"
-            echo "║  Version: $(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | tr -d '", ')"
+            echo "║  Version: $(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | tr -d "\", ")"
             echo "║  Commit: ${CIRCLE_SHA1:0:7}            ║"
             echo "╚════════════════════════════════════════╝"
             echo ""
@@ -120,8 +120,6 @@ jobs:
 # WORKFLOWS - Orchestrate job execution
 # ============================================================================
 workflows:
-  version: 2
-
   # --------------------------------------------------------------------------
   # SEQUENTIAL WORKFLOW
   # Jobs execute one after another, connected by `requires:`

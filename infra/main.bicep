@@ -4,9 +4,9 @@
 
 targetScope = 'resourceGroup'
 
-@description('Environment name (staging or production)')
-@allowed(['staging', 'production'])
-param environment string = 'staging'
+@description('Environment name (dev, staging, or production)')
+@allowed(['dev', 'staging', 'production'])
+param environment string = 'dev'
 
 @description('Azure region for resources')
 param location string = resourceGroup().location
@@ -51,6 +51,9 @@ param tags object = {
   environment: environment
 }
 
+@description('Enable custom Log Analytics workspace (set false for MVP/simpler deployment)')
+param enableLogAnalytics bool = false
+
 // Variables
 var appName = 'robot-api'
 var uniqueSuffix = uniqueString(resourceGroup().id)
@@ -63,8 +66,8 @@ var standardTags = union({
   deploymentSource: 'circleci'
 }, tags)
 
-// Log Analytics Workspace for Container Apps
-module logAnalytics 'modules/log-analytics.bicep' = {
+// Log Analytics Workspace for Container Apps (optional - only for production or when explicitly enabled)
+module logAnalytics 'modules/log-analytics.bicep' = if (enableLogAnalytics) {
   name: 'logAnalytics'
   params: {
     name: logAnalyticsName
@@ -96,8 +99,9 @@ module containerAppEnv 'modules/container-app-env.bicep' = {
   params: {
     name: containerAppEnvName
     location: location
-    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
-    logAnalyticsWorkspaceKey: logAnalytics.outputs.workspaceKey
+    // Only pass Log Analytics config if enabled
+    logAnalyticsCustomerId: enableLogAnalytics ? logAnalytics.outputs.customerId : ''
+    logAnalyticsWorkspaceKey: enableLogAnalytics ? logAnalytics.outputs.workspaceKey : ''
     tags: standardTags
   }
 }
@@ -133,6 +137,7 @@ module containerApp 'modules/container-app.bicep' = {
 
 // Grant the container app managed identity pull rights on ACR
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  dependsOn: [acr]  // Ensure ACR exists before creating role assignment
   scope: acrResource
   name: guid(subscription().id, resourceGroup().name, acrName, 'acrpull')
   properties: {

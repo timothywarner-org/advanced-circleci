@@ -8,6 +8,7 @@ This guide covers setting up and running the Globomantics Robot Fleet API locall
 - [Prerequisites](#prerequisites)
 - [Project Structure](#project-structure)
 - [Running the Application](#running-the-application)
+- [Schematica MCP Server](#schematica-mcp-server)
 - [Testing](#testing)
 - [Docker Development](#docker-development)
 - [API Reference](#api-reference)
@@ -84,6 +85,12 @@ advanced-circleci/
 │   ├── unit/                 # Unit tests
 │   ├── integration/          # API tests
 │   └── e2e/                  # End-to-end tests
+├── mcp-server/               # Schematica MCP Server
+│   ├── src/                  # MCP server source code
+│   │   ├── index.js          # Server entry point
+│   │   ├── tools.js          # Tool definitions
+│   │   └── tools.test.js     # Tool tests
+│   └── package.json          # MCP dependencies
 ├── infra/                    # Azure infrastructure (Bicep)
 ├── .circleci/                # CircleCI configuration
 ├── Dockerfile                # Container build
@@ -125,6 +132,90 @@ LOG_LEVEL=debug
 | `PORT` | `3000` | Server port |
 | `NODE_ENV` | `development` | Environment mode |
 | `LOG_LEVEL` | `info` | Logging verbosity |
+
+---
+
+## Schematica MCP Server
+
+The repository includes **Schematica**, an MCP (Model Context Protocol) server that allows AI assistants like Claude to manage the robot fleet through natural language commands.
+
+### What is MCP?
+
+The Model Context Protocol (MCP) is an open standard that enables AI assistants to interact with external tools and data sources. Schematica implements this protocol to expose robot management operations as tools that Claude can invoke.
+
+### Running the MCP Server
+
+```bash
+# First, start the Robot API (in one terminal)
+npm run dev
+
+# Then, start the MCP server (in another terminal)
+cd mcp-server
+npm install
+npm start
+```
+
+The MCP server runs on port 3001 by default and proxies requests to the Robot API on port 3000.
+
+### Available Tools
+
+| Tool | Description | Required Parameters |
+| --- | --- | --- |
+| `list_robots` | List all robots with filters | (optional) `status`, `location` |
+| `get_robot` | Get robot details | `id` |
+| `create_robot` | Create a new robot | `name`, `type` |
+| `update_robot` | Update robot properties | `id` |
+| `delete_robot` | Decommission a robot | `id` |
+| `schedule_maintenance` | Schedule maintenance | `id` |
+
+### MCP Server Configuration
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MCP_PORT` | `3001` | MCP server port |
+| `ROBOT_API_URL` | `http://localhost:3000` | Robot API URL |
+
+### Configure Claude to Use Schematica
+
+Add to your Claude configuration file:
+
+```json
+{
+  "mcpServers": {
+    "schematica": {
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+### MCP Server Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/mcp` | MCP protocol endpoint |
+| GET | `/health` | Health check |
+
+### Testing the MCP Server
+
+```bash
+cd mcp-server
+
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+### Example: Using with Claude
+
+Once configured, you can ask Claude to manage robots:
+
+- "List all active robots"
+- "Create a new assembly robot named 'Atlas Prime' in factory-floor-a"
+- "Schedule routine maintenance for robot rb-001"
+- "Update robot rb-002 status to maintenance"
 
 ---
 

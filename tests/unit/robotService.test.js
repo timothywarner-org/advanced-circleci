@@ -128,5 +128,45 @@ describe('RobotService', () => {
       const result = service.scheduleMaintenance('rb-999', {});
       expect(result).toBeNull();
     });
+
+    it('should use defaults when type and date not provided', () => {
+      const result = service.scheduleMaintenance('rb-001', {});
+
+      expect(result).toHaveProperty('maintenanceType', 'routine');
+      expect(result).toHaveProperty('scheduledDate');
+      expect(result).toHaveProperty('estimatedDuration', '2 hours');
+    });
+  });
+
+  describe('getRobotsByStatus', () => {
+    it('should return robots filtered by status', () => {
+      const activeRobots = service.getRobotsByStatus('active');
+
+      expect(Array.isArray(activeRobots)).toBe(true);
+      activeRobots.forEach((robot) => {
+        expect(robot.status).toBe('active');
+      });
+    });
+
+    it('should return empty array for non-existent status', () => {
+      const robots = service.getRobotsByStatus('nonexistent');
+      expect(robots).toEqual([]);
+    });
+  });
+
+  describe('getRobotsByLocation', () => {
+    it('should return robots filtered by location', () => {
+      const robots = service.getRobotsByLocation('factory-floor-a');
+
+      expect(Array.isArray(robots)).toBe(true);
+      robots.forEach((robot) => {
+        expect(robot.location).toBe('factory-floor-a');
+      });
+    });
+
+    it('should return empty array for non-existent location', () => {
+      const robots = service.getRobotsByLocation('nonexistent-location');
+      expect(robots).toEqual([]);
+    });
   });
 });

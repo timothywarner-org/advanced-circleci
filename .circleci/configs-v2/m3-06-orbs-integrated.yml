@@ -1,0 +1,211 @@
+# ============================================================================
+# MODULE 3: Orbs Integration with Approval Gates
+# ============================================================================
+# Production-ready pipeline leveraging the CircleCI ecosystem:
+#   - circleci/node: Caching, install, test commands
+#   - circleci/slack: Notifications with templates
+#   - circleci/azure-cli: OIDC auth, no secrets to rotate
+#   - Approval gates before production deployment
+#
+# VERSION PINNING STRATEGY:
+#   @6.1.2  - Exact (production, maximum stability)
+#   @7.2    - Minor (development, get patch fixes)
+#   @volatile - NEVER in production
+# ============================================================================
+
+version: 2.1
+
+# ============================================================================
+# ORBS: Certified, versioned packages from the ecosystem
+# ============================================================================
+orbs:
+  node: circleci/node@7.2.1          # Node.js convenience commands
+  slack: circleci/slack@6.1.2       # Slack notifications
+  azure-cli: circleci/azure-cli@1.3.2 # Azure CLI with OIDC support
+
+# ============================================================================
+# PARAMETERS
+# ============================================================================
+parameters:
+  deploy-env:
+    type: enum
+    enum: [dev, staging, prod, all]
+    default: all
+
+# ============================================================================
+# COMMANDS: Combine orb commands with custom logic
+# ============================================================================
+commands:
+  deploy-to-azure:
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+      resource-group:
+        type: string
+    steps:
+      - run:
+          name: Build container image
+          command: |
+            az acr login --name "$ACR_NAME"
+            docker build -t "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}" .
+            docker push "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}"
+      - run:
+          name: Deploy to << parameters.environment >>
+          command: |
+            az containerapp update \
+              --name "robot-api-<< parameters.environment >>" \
+              --resource-group "<< parameters.resource-group >>" \
+              --image "$ACR_NAME.azurecr.io/robot-api:${CIRCLE_SHA1:0:7}"
+      - slack/notify:
+          event: pass
+          template: success_tagged_deploy_1
+
+# ============================================================================
+# JOBS
+# ============================================================================
+jobs:
+  build:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages          # Orb handles caching automatically!
+      - run: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - dist
+
+  test:
+    executor: node/default
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: npm test
+      - store_test_results:
+          path: test-results
+      - slack/notify:
+          event: fail
+          template: basic_fail_1
+
+  deploy:
+    executor: azure-cli/azure-docker
+    parameters:
+      environment:
+        type: enum
+        enum: [dev, staging, prod]
+      resource-group:
+        type: string
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Azure OIDC Login         # Passwordless auth - no secrets!
+          command: |
+            az login \
+              --service-principal \
+              --user "${AZURE_CLIENT_ID}" \
+              --tenant "${AZURE_TENANT_ID}" \
+              --federated-token "${CIRCLE_OIDC_TOKEN}"
+            az account set --subscription "${AZURE_SUBSCRIPTION_ID}"
+      - deploy-to-azure:
+          environment: << parameters.environment >>
+          resource-group: << parameters.resource-group >>
+
+# ============================================================================
+# WORKFLOWS: Dev → Staging → Approval → Production
+# ============================================================================
+workflows:
+  build-test-deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      - test:
+          requires:
+            - build
+          context: slack-secrets       # Orb reads SLACK_WEBHOOK from context
+
+      # DEV: Auto-deploy after tests pass
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          resource-group: rg-globomantics-dev
+          requires:
+            - test
+          context:
+            - azure-oidc-dev
+            - slack-secrets
+
+      # STAGING: Auto-deploy after dev succeeds
+      - deploy:
+          name: deploy-staging
+          environment: staging
+          resource-group: rg-globomantics-staging
+          requires:
+            - deploy-dev
+          context:
+            - azure-oidc-staging
+            - slack-secrets
+
+      # APPROVAL GATE: Human must click approve in CircleCI UI
+      - slack/on-hold:
+          context: slack-secrets
+          requires:
+            - deploy-staging
+
+      - hold-for-production:
+          type: approval              # <-- KEY: Pauses workflow for approval
+          requires:
+            - deploy-staging
+            - slack/on-hold
+
+      # PRODUCTION: Only after approval, only on main
+      - deploy:
+          name: deploy-prod
+          environment: prod
+          resource-group: rg-globomantics-prod
+          requires:
+            - hold-for-production
+          context:
+            - azure-oidc-prod
+            - slack-secrets
+          filters:
+            branches:
+              only: main
+
+# ============================================================================
+# MODULE 3 KEY CONCEPTS DEMONSTRATED:
+#
+# 1. ORBS: Import battle-tested solutions (node, slack, azure-cli)
+#
+# 2. VERSION PINNING:
+#    - @6.1.2  Exact version for stability
+#    - @7.2    Minor version (gets 7.2.x)
+#    - @7      Major version (gets 7.x.x) - more risk
+#    - @volatile NEVER use in production!
+#
+# 3. APPROVAL GATES:
+#    - type: approval pauses workflow
+#    - slack/on-hold notifies team
+#    - Human clicks Approve in CircleCI UI
+#    - Audit trail: who approved, when
+#
+# 4. OIDC AUTHENTICATION:
+#    - az login --federated-token = no secrets to rotate
+#    - Uses CIRCLE_OIDC_TOKEN provided by CircleCI
+#    - Federated credentials, short-lived tokens
+#    - Security best practice for cloud deployments
+#
+# 5. CONTEXTS:
+#    - azure-oidc-dev, azure-oidc-staging, azure-oidc-prod
+#    - slack-secrets for webhook URL
+#    - Environment isolation, least privilege
+# ============================================================================

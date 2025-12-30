@@ -114,6 +114,82 @@ See `.env.example` for required variables:
 - `AZURE_*` - Azure deployment settings
 - `SLACK_*` - Notification config
 
+## Schematica MCP Server
+
+The `mcp-server/` directory contains **Schematica**, an MCP (Model Context Protocol) server that enables AI assistants to manage the robot fleet inventory via the Robot API.
+
+### Purpose
+
+Schematica provides a bridge between AI assistants (like Claude) and the Globomantics Robot Fleet API, allowing natural language interactions for robot management operations.
+
+### Architecture
+
+```
+mcp-server/
+├── src/
+│   ├── index.js       # MCP server entry point (port 3001)
+│   ├── tools.js       # Tool definitions and API handlers
+│   └── tools.test.js  # Tool tests
+├── package.json       # Dependencies (@modelcontextprotocol/sdk)
+└── jest.config.js     # Test configuration
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_robots` | List all robots with optional status/location filters |
+| `get_robot` | Get details of a specific robot by ID |
+| `create_robot` | Create a new robot in the fleet |
+| `update_robot` | Update robot properties (name, status, location, battery) |
+| `delete_robot` | Decommission a robot from the fleet |
+| `schedule_maintenance` | Schedule maintenance for a robot |
+
+### Commands
+
+```bash
+# From mcp-server/ directory
+npm install            # Install dependencies
+npm start              # Start MCP server (requires Robot API on port 3000)
+npm test               # Run tests with coverage
+```
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `MCP_PORT` | `3001` | Port for the MCP server |
+| `ROBOT_API_URL` | `http://localhost:3000` | Robot API base URL |
+
+### Endpoints
+
+- `POST /mcp` - MCP protocol endpoint (Streamable HTTP transport)
+- `GET /health` - Health check
+
+### Usage with Claude
+
+Add to your Claude configuration:
+
+```json
+{
+  "mcpServers": {
+    "schematica": {
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+### Running Both Servers
+
+```bash
+# Terminal 1: Start the Robot API
+npm run dev
+
+# Terminal 2: Start the MCP server
+cd mcp-server && npm start
+```
+
 ## Course Documentation
 
 - `COURSE_OUTLINE.md` - Full curriculum structure

@@ -1,0 +1,254 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0078D4', 'primaryTextColor': '#fff', 'primaryBorderColor': '#004578', 'lineColor': '#50E6FF', 'secondaryColor': '#50E6FF', 'tertiaryColor': '#773B93'}}}%%
+
+flowchart TB
+    %% ============================================================
+    %% GLOBOMANTICS ROBOT FLEET API
+    %% Azure Container Apps Architecture Diagram
+    %% ============================================================
+
+    %% ============================================================
+    %% CI/CD PIPELINE - CircleCI
+    %% ============================================================
+    subgraph CICD["<b>CircleCI CI/CD Pipeline</b>"]
+        direction LR
+
+        subgraph BUILD_STAGE["<b>Build Stage</b>"]
+            BUILD["<b>Build Job</b><br/>Node.js 20<br/>npm install<br/>npm run lint"]
+        end
+
+        subgraph TEST_STAGE["<b>Test Stage - Fan Out</b>"]
+            direction TB
+            UNIT["<b>Unit Tests</b><br/>Jest<br/>Coverage 70%"]
+            INTEGRATION["<b>Integration Tests</b><br/>SuperTest"]
+            E2E["<b>E2E Tests</b><br/>API validation"]
+            SECURITY["<b>Security Scan</b><br/>npm audit"]
+        end
+
+        subgraph DOCKER_STAGE["<b>Docker Stage</b>"]
+            DOCKER["<b>Docker Build</b><br/>Multi-stage<br/>Alpine Linux<br/>Non-root user"]
+        end
+
+        subgraph DEPLOY_STAGE["<b>Deployment Pipeline</b>"]
+            direction TB
+            PUSH["<b>Push to ACR</b><br/>az acr login<br/>docker push"]
+            DEP_DEV["<b>Deploy Dev</b><br/>Bicep IaC"]
+            DEP_STG["<b>Deploy Staging</b><br/>Bicep IaC"]
+            APPROVAL["<b>APPROVAL GATE</b><br/>Manual Hold<br/>Production Review"]
+            DEP_PROD["<b>Deploy Production</b><br/>Bicep IaC"]
+        end
+
+        BUILD --> UNIT & INTEGRATION & E2E & SECURITY
+        UNIT & INTEGRATION & E2E & SECURITY --> DOCKER
+        DOCKER --> PUSH
+        PUSH --> DEP_DEV --> DEP_STG --> APPROVAL --> DEP_PROD
+    end
+
+    %% ============================================================
+    %% AZURE CLOUD INFRASTRUCTURE
+    %% ============================================================
+    subgraph AZURE["<b>AZURE CLOUD - East US Region</b>"]
+        direction TB
+
+        %% ============================================================
+        %% DEVELOPMENT ENVIRONMENT
+        %% ============================================================
+        subgraph RG_DEV["<b>Resource Group: globomantics-robots-dev</b>"]
+            direction TB
+
+            ACR_D["<b>Azure Container Registry</b><br/>globomanticsacr[unique]<br/>SKU: Basic<br/>Admin: Disabled"]
+
+            subgraph ENV_D["<b>Container Apps Environment</b><br/>env-robot-api-dev"]
+                CA_D["<b>Container App</b><br/>robot-api-dev<br/>CPU: 0.25 cores<br/>Memory: 0.5Gi<br/>Replicas: 1<br/>Port: 3000"]
+
+                INGRESS_D["<b>Ingress</b><br/>External: HTTPS<br/>TLS Termination"]
+
+                PROBES_D["<b>Health Probes</b><br/>Liveness: /api/health/live<br/>Readiness: /api/health/ready"]
+            end
+
+            LOG_D["<b>Azure Monitor</b><br/>Managed Logs"]
+
+            ROLE_D["<b>Role Assignment</b><br/>AcrPull"]
+
+            ACR_D -.->|"Pull via<br/>Managed Identity"| CA_D
+            CA_D --> INGRESS_D
+            CA_D --> PROBES_D
+            CA_D -.->|"Logs"| LOG_D
+            CA_D -.->|"Identity"| ROLE_D
+            ROLE_D -.-> ACR_D
+        end
+
+        %% ============================================================
+        %% STAGING ENVIRONMENT
+        %% ============================================================
+        subgraph RG_STG["<b>Resource Group: globomantics-robots-staging</b>"]
+            direction TB
+
+            ACR_S["<b>Azure Container Registry</b><br/>globomanticsacr[unique]<br/>SKU: Basic<br/>Admin: Disabled"]
+
+            subgraph ENV_S["<b>Container Apps Environment</b><br/>env-robot-api-staging"]
+                CA_S["<b>Container App</b><br/>robot-api-staging<br/>CPU: 0.5 cores<br/>Memory: 1Gi<br/>Replicas: 2<br/>Port: 3000"]
+
+                INGRESS_S["<b>Ingress</b><br/>External: HTTPS<br/>TLS Termination"]
+
+                PROBES_S["<b>Health Probes</b><br/>Liveness: /api/health/live<br/>Readiness: /api/health/ready"]
+            end
+
+            LOG_S["<b>Azure Monitor</b><br/>Managed Logs"]
+
+            ROLE_S["<b>Role Assignment</b><br/>AcrPull"]
+
+            ACR_S -.->|"Pull via<br/>Managed Identity"| CA_S
+            CA_S --> INGRESS_S
+            CA_S --> PROBES_S
+            CA_S -.->|"Logs"| LOG_S
+            CA_S -.->|"Identity"| ROLE_S
+            ROLE_S -.-> ACR_S
+        end
+
+        %% ============================================================
+        %% PRODUCTION ENVIRONMENT
+        %% ============================================================
+        subgraph RG_PROD["<b>Resource Group: globomantics-robots-production</b>"]
+            direction TB
+
+            ACR_P["<b>Azure Container Registry</b><br/>globomanticsacr[unique]<br/>SKU: Premium<br/>Admin: Disabled"]
+
+            subgraph ENV_P["<b>Container Apps Environment</b><br/>env-robot-api-production"]
+                CA_P["<b>Container App</b><br/>robot-api-production<br/>CPU: 1 core<br/>Memory: 2Gi<br/>Port: 3000"]
+
+                INGRESS_P["<b>Ingress</b><br/>External: HTTPS<br/>TLS Termination<br/>CORS: Enabled"]
+
+                PROBES_P["<b>Health Probes</b><br/>Liveness: /api/health/live<br/>Readiness: /api/health/ready"]
+
+                SCALE_P["<b>Auto-Scaling</b><br/>Min: 2 replicas<br/>Max: 10 replicas<br/>HTTP: 100 concurrent"]
+            end
+
+            LA_P["<b>Log Analytics Workspace</b><br/>logs-robot-api-production<br/>Retention: 30 days<br/>SKU: PerGB2018"]
+
+            ROLE_P["<b>Role Assignment</b><br/>AcrPull"]
+
+            ACR_P -.->|"Pull via<br/>Managed Identity"| CA_P
+            CA_P --> INGRESS_P
+            CA_P --> PROBES_P
+            CA_P --> SCALE_P
+            CA_P -.->|"Logs"| LA_P
+            CA_P -.->|"Identity"| ROLE_P
+            ROLE_P -.-> ACR_P
+        end
+    end
+
+    %% ============================================================
+    %% EXTERNAL CONSUMERS
+    %% ============================================================
+    subgraph EXTERNAL["<b>External Access Layer</b>"]
+        direction TB
+
+        USERS(("<b>API Consumers</b><br/>Robot Fleet<br/>Operators"))
+
+        MCP["<b>Schematica MCP Server</b><br/>Port 3001<br/>AI Assistant Integration<br/>list_robots | create_robot<br/>update_robot | delete_robot"]
+
+        API_ENDPOINTS["<b>Robot Fleet API Endpoints</b><br/>GET /api/robots<br/>POST /api/robots<br/>PUT /api/robots/:id<br/>DELETE /api/robots/:id<br/>POST /api/robots/:id/maintenance<br/>GET /api/metrics"]
+    end
+
+    %% ============================================================
+    %% CONTAINER CONFIGURATION DETAILS
+    %% ============================================================
+    subgraph CONFIG["<b>Container Configuration</b>"]
+        direction LR
+
+        IMAGE["<b>Docker Image</b><br/>Multi-stage build<br/>Alpine Linux base<br/>Non-root user<br/>Port 3000 exposed"]
+
+        ENV_VARS["<b>Environment Variables</b><br/>NODE_ENV: [env]<br/>PORT: 3000<br/>LOG_LEVEL: info"]
+
+        IDENTITY["<b>Managed Identity</b><br/>Type: SystemAssigned<br/>Role: AcrPull<br/>GUID: 7f951dda-4ed3-4680"]
+    end
+
+    %% ============================================================
+    %% CONNECTIONS - CI/CD to Azure
+    %% ============================================================
+    DEP_DEV -->|"deploy.sh dev<br/>dev.bicepparam"| RG_DEV
+    DEP_STG -->|"deploy.sh staging<br/>staging.bicepparam"| RG_STG
+    DEP_PROD -->|"deploy.sh production<br/>production.bicepparam"| RG_PROD
+
+    PUSH -->|"docker push"| ACR_D
+    PUSH -->|"docker push"| ACR_S
+    PUSH -->|"docker push"| ACR_P
+
+    %% ============================================================
+    %% CONNECTIONS - External to Azure
+    %% ============================================================
+    USERS -->|"HTTPS<br/>robot-api-dev.*.azurecontainerapps.io"| INGRESS_D
+    USERS -->|"HTTPS<br/>robot-api-staging.*.azurecontainerapps.io"| INGRESS_S
+    USERS -->|"HTTPS<br/>robot-api-production.*.azurecontainerapps.io"| INGRESS_P
+
+    MCP -->|"REST API calls<br/>localhost:3000"| INGRESS_D
+    API_ENDPOINTS --> MCP
+
+    %% ============================================================
+    %% CONNECTIONS - Config to Production
+    %% ============================================================
+    IMAGE -.-> CA_P
+    ENV_VARS -.-> CA_P
+    IDENTITY -.-> ROLE_P
+
+    %% ============================================================
+    %% STYLING - Azure Brand Colors
+    %% ============================================================
+
+    %% CircleCI - Dark theme
+    style BUILD fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style UNIT fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style INTEGRATION fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style E2E fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style SECURITY fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DOCKER fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style PUSH fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DEP_DEV fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DEP_STG fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+    style DEP_PROD fill:#343434,stroke:#161616,color:#fff,stroke-width:2px
+
+    %% Approval Gate - Orange/Red for attention
+    style APPROVAL fill:#D83B01,stroke:#A12C01,color:#fff,stroke-width:3px
+
+    %% Azure Container Registry - Azure Blue
+    style ACR_D fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    style ACR_S fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+    style ACR_P fill:#0078D4,stroke:#005A9E,color:#fff,stroke-width:2px
+
+    %% Container Apps - Green for Dev, Orange for Staging, Purple for Prod
+    style CA_D fill:#107C10,stroke:#0B5A08,color:#fff,stroke-width:2px
+    style CA_S fill:#FF8C00,stroke:#CC7000,color:#fff,stroke-width:2px
+    style CA_P fill:#773B93,stroke:#5C2D91,color:#fff,stroke-width:2px
+
+    %% Ingress - Teal
+    style INGRESS_D fill:#008272,stroke:#005A5A,color:#fff,stroke-width:2px
+    style INGRESS_S fill:#008272,stroke:#005A5A,color:#fff,stroke-width:2px
+    style INGRESS_P fill:#008272,stroke:#005A5A,color:#fff,stroke-width:2px
+
+    %% Health Probes - Light Blue
+    style PROBES_D fill:#00BCF2,stroke:#0078D4,color:#000,stroke-width:2px
+    style PROBES_S fill:#00BCF2,stroke:#0078D4,color:#000,stroke-width:2px
+    style PROBES_P fill:#00BCF2,stroke:#0078D4,color:#000,stroke-width:2px
+
+    %% Scaling - Cyan
+    style SCALE_P fill:#50E6FF,stroke:#0078D4,color:#000,stroke-width:2px
+
+    %% Logging - Yellow
+    style LOG_D fill:#FFB900,stroke:#CC9300,color:#000,stroke-width:2px
+    style LOG_S fill:#FFB900,stroke:#CC9300,color:#000,stroke-width:2px
+    style LA_P fill:#FFB900,stroke:#CC9300,color:#000,stroke-width:2px
+
+    %% Role Assignments - Purple
+    style ROLE_D fill:#5C2D91,stroke:#3B1D5C,color:#fff,stroke-width:2px
+    style ROLE_S fill:#5C2D91,stroke:#3B1D5C,color:#fff,stroke-width:2px
+    style ROLE_P fill:#5C2D91,stroke:#3B1D5C,color:#fff,stroke-width:2px
+
+    %% External - White with border
+    style USERS fill:#ffffff,stroke:#666666,color:#000,stroke-width:2px
+    style MCP fill:#ffffff,stroke:#0078D4,color:#000,stroke-width:2px
+    style API_ENDPOINTS fill:#E6F3FF,stroke:#0078D4,color:#000,stroke-width:2px
+
+    %% Configuration - Gray
+    style IMAGE fill:#E6E6E6,stroke:#666666,color:#000,stroke-width:2px
+    style ENV_VARS fill:#E6E6E6,stroke:#666666,color:#000,stroke-width:2px
+    style IDENTITY fill:#E6E6E6,stroke:#666666,color:#000,stroke-width:2px
