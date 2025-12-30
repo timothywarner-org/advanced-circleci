@@ -35,10 +35,12 @@ version: 2.1
 parameters:
   require-approval:
     type: boolean
- #   default: true
+    default: true
     description: "Require manual approval before deploy (false = auto-deploy)"
+
   hello-message:
     type: enum
+    default: hello-world
     enum:
       - hello-world
       - hola-mundo
