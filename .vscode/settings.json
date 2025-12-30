@@ -56,5 +56,6 @@
     "on_hold": true,
     "success": true,
     "unauthorized": true
-  }
+  },
+  "circleci.filters.branchFilter": "allBranches"
 }
