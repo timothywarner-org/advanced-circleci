@@ -35,7 +35,7 @@ version: 2.1
 parameters:
   require-approval:
     type: boolean
-    default: true
+    default: false
     description: "Require manual approval before deploy (false = auto-deploy)"
 
   hello-message:
