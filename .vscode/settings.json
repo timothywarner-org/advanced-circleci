@@ -45,5 +45,16 @@
 
   "terminal.integrated.env.osx": {
     "NODE_ENV": "development"
+  },
+  "circleci.notifications.mine": true,
+  "circleci.notifications.statusFilter": {
+    "canceled": true,
+    "error": true,
+    "failed": true,
+    "failing": true,
+    "not_run": true,
+    "on_hold": true,
+    "success": true,
+    "unauthorized": true
   }
 }

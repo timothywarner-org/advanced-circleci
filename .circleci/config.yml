@@ -1,91 +1,116 @@
 # ============================================================================
-# MODULE 1: Hello World - Welcome to Globomantics Robotics!
+# MODULE 1: ANTI-PATTERN - Sequential Pipeline (The "Before" State)
 # ============================================================================
+# This config demonstrates what NOT to do. Every job waits for the previous
+# one, even when there's no real dependency. We reinstall deps in every job.
 #
-# Your first CircleCI config! This demonstrates the bare minimum:
-#   - version: Required, tells CircleCI which config syntax to use
-#   - jobs: Define what work to do
-#   - workflows: Define when and how jobs run
-#
-# WHAT THIS CONFIG DOES:
-#   Simply prints a welcome message - the "Hello World" of CI/CD!
-#
+# PAIN POINTS TO OBSERVE IN CIRCLECI UI:
+#   - Total time = sum of all jobs (no parallelism)
+#   - Each job reinstalls node_modules (~30-60 sec wasted per job)
+#   - Pipeline visualization shows a straight line, not a diamond
 # ============================================================================
 
 version: 2.1
 
-# =============================================================================
-# JOBS: Define the work to be done
-# =============================================================================
 jobs:
-  welcome:
+  build:
     docker:
-      - image: cimg/base:current    # CircleCI's lightweight base image
-    resource_class: small           # 1 vCPU, 2GB - minimal for simple jobs
+      - image: cimg/node:20.18
     steps:
+      - checkout
       - run:
-          name: Welcome to Globomantics Robotics!
-          command: |
-            echo ""
-            echo "  ╔══════════════════════════════════════════════════════════╗"
-            echo "  ║                                                          ║"
-            echo "  ║   🤖  WELCOME TO GLOBOMANTICS ROBOTICS  🤖               ║"
-            echo "  ║                                                          ║"
-            echo "  ║   Advanced CircleCI Configuration Course                 ║"
-            echo "  ║                                                          ║"
-            echo "  ╚══════════════════════════════════════════════════════════╝"
-            echo ""
-            echo "  Your CI/CD pipeline is working! Here's what just happened:"
-            echo ""
-            echo "    1. CircleCI detected a push to your repository"
-            echo "    2. It read this config.yml file"
-            echo "    3. It spun up a Docker container"
-            echo "    4. It ran this job's steps"
-            echo ""
-            echo "  ─────────────────────────────────────────────────────────────"
-            echo "  Pipeline Info:"
-            echo "    Branch:    ${CIRCLE_BRANCH:-local}"
-            echo "    Commit:    ${CIRCLE_SHA1:-none}"
-            echo "    Build:     ${CIRCLE_BUILD_NUM:-0}"
-            echo "    Workflow:  ${CIRCLE_WORKFLOW_ID:-local}"
-            echo "  ─────────────────────────────────────────────────────────────"
-            echo ""
-            echo "  Next: Try adding more jobs and connecting them with 'requires'!"
-            echo ""
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Build application
+          command: npm run build
 
-# =============================================================================
-# WORKFLOWS: Define when jobs run
-# =============================================================================
-workflows:
-  welcome-workflow:
-    jobs:
-      - welcome
+  lint:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies (again!)
+          command: npm ci    # WASTE: Already installed in build
+      - run:
+          name: Run linter
+          command: npm run lint
+
+  test-unit:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies (again!)
+          command: npm ci    # WASTE: Third time installing
+      - run:
+          name: Run unit tests
+          command: npm run test:unit
+
+  test-integration:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies (again!)
+          command: npm ci    # WASTE: Fourth time
+      - run:
+          name: Run integration tests
+          command: npm run test:integration
+
+  test-e2e:
+    docker:
+      - image: cimg/node:20.18
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies (again!)
+          command: npm ci    # WASTE: Fifth time!
+      - run:
+          name: Run E2E tests
+          command: npm run test:e2e
 
 # ============================================================================
-# TEACHING POINTS:
+# WORKFLOW: Everything runs sequentially - SLOW!
+# ============================================================================
+workflows:
+  m1-sequential-anti-pattern:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - main
+                - /feature\/.*/
+
+      # ANTI-PATTERN: lint waits for build, but doesn't need build output
+      - lint:
+          requires:
+            - build
+
+      # ANTI-PATTERN: These tests don't depend on each other, yet run sequentially
+      - test-unit:
+          requires:
+            - lint
+
+      - test-integration:
+          requires:
+            - test-unit
+
+      - test-e2e:
+          requires:
+            - test-integration
+
+# ============================================================================
+# WHAT'S WRONG HERE (Module 1 Learning Points):
 #
-# MINIMUM VIABLE CONFIG:
-#   Every CircleCI config needs at least:
-#   - version: 2.1
-#   - One job with at least one step
-#   - One workflow that runs that job
+# 1. FALSE DEPENDENCIES: lint doesn't need build output - just source code
+# 2. NO PARALLELISM: All test jobs could run at the same time
+# 3. NO WORKSPACE: npm ci runs 5 times instead of once
+# 4. TOTAL TIME: ~6-8 min sequential vs ~2-3 min with fan-out
 #
-# KEY CONCEPTS INTRODUCED:
-#   - docker: Defines the execution environment (container image)
-#   - resource_class: Controls compute size (and cost!)
-#   - steps: Ordered list of things to do
-#   - run: Execute shell commands
-#   - workflows: Orchestrate job execution
-#
-# BUILT-IN ENVIRONMENT VARIABLES:
-#   - CIRCLE_BRANCH: Git branch that triggered the build
-#   - CIRCLE_SHA1: Full git commit SHA
-#   - CIRCLE_BUILD_NUM: Auto-incrementing build number
-#   - CIRCLE_WORKFLOW_ID: Unique ID for this workflow run
-#
-# NEXT STEPS:
-#   See m1-02-workflow-orchestration.yml to learn about:
-#   - Multiple jobs
-#   - Fan-out/fan-in patterns
-#   - Job dependencies with 'requires'
+# Next config (02) shows the fix using fan-out/fan-in patterns.
 # ============================================================================
