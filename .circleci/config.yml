@@ -37,6 +37,13 @@ parameters:
     type: boolean
  #   default: true
     description: "Require manual approval before deploy (false = auto-deploy)"
+  hello-message:
+    type: enum
+    enum:
+      - hello-world
+      - hola-mundo
+      - hi-there
+    description: "Greeting echoed during deploy (no default; pass at trigger time)"
 
 jobs:
   # --------------------------------------------------------------------------
@@ -153,6 +160,7 @@ jobs:
             echo "  Commit: ${CIRCLE_SHA1:0:7}"
             # CIRCLE_BUILD_NUM: Auto-incrementing build number for this project
             echo "  Build:  ${CIRCLE_BUILD_NUM}"
+            echo "  Hello parameter: << pipeline.parameters.hello-message >>"
             echo "==========================================="
             echo "Deployment successful! (simulated)"
 
