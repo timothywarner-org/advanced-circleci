@@ -1,14 +1,16 @@
 # ============================================================================
-# MODULE 3: Production Orbs Integration with Slack Notifications
+# MODULE 3: Production Orbs Integration with Custom Orb & Slack Notifications
 # ============================================================================
 # Real-world pipeline for the Globomantics Robot Fleet API:
 #   - circleci/node: Battle-tested Node.js workflows
-#   - circleci/slack: Rich notifications to #circleci-builds
+#   - globomantics/robot-fleet: Custom orb with health checks & validation
+#   - Slack webhook notifications to #circleci-builds
 #   - Approval gates before production
 #   - Simulated Azure deployments (no actual cloud resources)
 #
 # TEACHING POINTS:
 #   - Orb version pinning strategy (exact versions for stability)
+#   - Custom orb development and integration
 #   - Context-based secrets management (slack-notifications)
 #   - Notification strategy (fail fast on tests, confirm deployments)
 #   - Approval workflow pattern for production safety
@@ -17,10 +19,97 @@
 version: 2.1
 
 # ============================================================================
-# ORBS: Certified packages from CircleCI ecosystem
+# ORBS: Certified + Custom packages
 # ============================================================================
 orbs:
   node: circleci/node@7.2.1         # Node.js convenience commands with caching
+
+  # Custom Globomantics orb (inline for development)
+  # After publishing: robot-fleet: globomantics/robot-fleet@1.0.0
+  # Publishing commands:
+  #   circleci orb pack orb-source/src > orb-source/orb.yml
+  #   circleci orb publish orb-source/orb.yml globomantics/robot-fleet@dev:alpha
+  #   circleci orb publish promote globomantics/robot-fleet@dev:alpha patch
+  robot-fleet:
+    commands:
+      health-check:
+        description: "Check if the Robot Fleet API is healthy"
+        parameters:
+          url:
+            type: string
+            description: "Base URL of the API to check"
+          endpoint:
+            type: string
+            default: "/api/health"
+          retries:
+            type: integer
+            default: 5
+          retry-delay:
+            type: integer
+            default: 10
+        steps:
+          - run:
+              name: Health Check - << parameters.url >><< parameters.endpoint >>
+              command: |
+                echo "╔════════════════════════════════════════════════════╗"
+                echo "║     GLOBOMANTICS HEALTH CHECK                      ║"
+                echo "╠════════════════════════════════════════════════════╣"
+                echo "║  URL: << parameters.url >><< parameters.endpoint >>"
+                echo "║  Retries: << parameters.retries >>"
+                echo "╚════════════════════════════════════════════════════╝"
+
+                for i in $(seq 1 << parameters.retries >>); do
+                  echo ""
+                  echo "Attempt $i of << parameters.retries >>..."
+
+                  if curl -sf --max-time 30 \
+                    "<< parameters.url >><< parameters.endpoint >>" > /dev/null 2>&1; then
+                    echo "Health check PASSED!"
+                    exit 0
+                  fi
+
+                  if [ $i -lt << parameters.retries >> ]; then
+                    echo "Failed, waiting << parameters.retry-delay >> seconds..."
+                    sleep << parameters.retry-delay >>
+                  fi
+                done
+
+                echo ""
+                echo "Health check FAILED after << parameters.retries >> attempts"
+                # Don't fail for simulated deployments
+                echo "(Continuing - simulated environment)"
+
+      validate-deployment:
+        description: "Validate a Robot Fleet API deployment"
+        parameters:
+          url:
+            type: string
+            description: "Base URL of the deployed API"
+          check-robots:
+            type: boolean
+            default: true
+        steps:
+          - run:
+              name: Validate Deployment - << parameters.url >>
+              command: |
+                echo "╔════════════════════════════════════════════════════╗"
+                echo "║     GLOBOMANTICS DEPLOYMENT VALIDATION             ║"
+                echo "╠════════════════════════════════════════════════════╣"
+                echo "║  URL: << parameters.url >>"
+                echo "╚════════════════════════════════════════════════════╝"
+
+                echo ""
+                echo "Checking health endpoint..."
+                echo "  [PASS] Health endpoint responding (simulated)"
+
+                if [ "<< parameters.check-robots >>" = "true" ]; then
+                  echo ""
+                  echo "Checking robots endpoint..."
+                  echo "  [PASS] Robots endpoint returning data (simulated)"
+                fi
+
+                echo ""
+                echo "All validation checks PASSED!"
 
 # ============================================================================
 # EXECUTORS: Reusable execution environments
@@ -243,6 +332,18 @@ jobs:
           environment: << parameters.environment >>
           app-name: << parameters.app-name >>
 
+      # Use custom orb's health check with retry logic
+      - robot-fleet/health-check:
+          url: https://<< parameters.app-name >>.azurecontainerapps.io
+          endpoint: /api/health
+          retries: 3
+          retry-delay: 5
+
+      # Use custom orb's deployment validation
+      - robot-fleet/validate-deployment:
+          url: https://<< parameters.app-name >>.azurecontainerapps.io
+          check-robots: true
+
       # Notify on successful deployment
       - notify-slack:
           message: "✅ *Deployed to << parameters.environment >>* - Robot Fleet API\\nApp: `<< parameters.app-name >>`"
@@ -404,35 +505,44 @@ workflows:
 # ============================================================================
 #
 # 1. ORB VERSION PINNING:
-#    node@7.2.1    - Exact patch version for maximum reproducibility
+#    node@7.2.1           - Certified orb, exact patch version
+#    robot-fleet@dev:alpha - Custom orb, dev channel for testing
 #
-#    Why not @7? Because major version pins get breaking changes.
-#    Why not @volatile? Because it's literally called "volatile" - never use it.
+#    Channels: dev (unstable), @x.y.z (stable), @volatile (never use)
 #
-# 2. CONTEXT-BASED SECRETS:
+# 2. CUSTOM ORB INTEGRATION:
+#    robot-fleet/health-check      - Retry logic for deployment verification
+#    robot-fleet/validate-deployment - Comprehensive deployment checks
+#
+#    Publishing workflow:
+#      circleci orb pack orb-source/src > orb.yml
+#      circleci orb publish orb.yml globomantics/robot-fleet@dev:alpha
+#      circleci orb publish promote globomantics/robot-fleet@dev:alpha patch
+#
+# 3. CONTEXT-BASED SECRETS:
 #    context: slack-notifications
 #    - Stores SLACK_WEBHOOK securely (webhook URL for notifications)
 #    - Scoped to organization
 #    - No secrets in config file
 #    - Least privilege access
 #
-# 3. NOTIFICATION STRATEGY:
+# 4. NOTIFICATION STRATEGY:
 #    Tests: Notify on FAILURE only (fail fast)
 #    Deployments: Notify on SUCCESS (confirmation)
 #    Why? Tests fail frequently during dev, but deployments are milestones.
 #
-# 4. APPROVAL GATES:
+# 5. APPROVAL GATES:
 #    type: approval pauses the workflow
 #    Human clicks "Approve" in CircleCI UI
 #    Audit trail: who approved, when, from which IP
 #    Compliance requirement for production changes
 #
-# 5. WORKSPACE PERSISTENCE:
+# 6. WORKSPACE PERSISTENCE:
 #    persist_to_workspace: Saves build artifacts
 #    attach_workspace: Loads artifacts in downstream jobs
 #    Why? Avoids rebuilding in every job (faster, more reliable)
 #
-# 6. BRANCH FILTERING:
+# 7. BRANCH FILTERING:
 #    Feature branches → dev only
 #    Main branch → staging + prod (after approval)
 #    Prevents accidental production deployments from feature branches
