@@ -1,7 +1,7 @@
 # ============================================================================
 # MODULE 3: Production Orbs Integration with Slack Notifications
 # ============================================================================
-# Real-world pipeline for Globomantics Robot Fleet API:
+# Real-world pipeline for the Globomantics Robot Fleet API:
 #   - circleci/node: Battle-tested Node.js workflows
 #   - circleci/slack: Rich notifications to #circleci-builds
 #   - Approval gates before production
