@@ -21,7 +21,6 @@ version: 2.1
 # ============================================================================
 orbs:
   node: circleci/node@7.2.1         # Node.js convenience commands with caching
-  slack: circleci/slack@6.1.2       # Slack notifications with rich templates
 
 # ============================================================================
 # EXECUTORS: Reusable execution environments
@@ -37,6 +36,79 @@ executors:
 # COMMANDS: Reusable step sequences
 # ============================================================================
 commands:
+  # Send Slack notification via webhook (no orb required)
+  notify-slack:
+    parameters:
+      message:
+        type: string
+        description: "Message to send"
+      color:
+        type: string
+        default: "#36a64f"
+        description: "Attachment color (green=#36a64f, red=#dc3545, yellow=#ffc107)"
+    steps:
+      - run:
+          name: Send Slack Notification
+          command: |
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "attachments": [{
+                  "color": "<< parameters.color >>",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "<< parameters.message >>"
+                      }
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Branch:* '"$CIRCLE_BRANCH"' | *Job:* '"$CIRCLE_JOB"' | <'"$CIRCLE_BUILD_URL"'|View Build>"
+                        }
+                      ]
+                    }
+                  ]
+                }]
+              }'
+
+  # Notify on failure (for use in test jobs)
+  notify-slack-on-failure:
+    steps:
+      - run:
+          name: Notify Slack on Failure
+          when: on_fail
+          command: |
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "attachments": [{
+                  "color": "#dc3545",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "❌ *Build Failed* - Robot Fleet API\n'"$CIRCLE_JOB"' failed on branch `'"$CIRCLE_BRANCH"'`"
+                      }
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit:* '"${CIRCLE_SHA1:0:7}"' | <'"$CIRCLE_BUILD_URL"'|View Build>"
+                        }
+                      ]
+                    }
+                  ]
+                }]
+              }'
+
   # Simulate Azure deployment without actual cloud resources
   simulate-azure-deployment:
     parameters:
@@ -148,11 +220,7 @@ jobs:
           destination: coverage-report
 
       # CRITICAL: Notify on test failure (fail fast pattern)
-      # Only notifies if previous steps failed
-      - slack/notify:
-          event: fail
-          template: basic_fail_1
-          channel: C0A6655DKS6  # #circleci-builds channel ID
+      - notify-slack-on-failure
 
   # Simulate deployment to Azure environment
   deploy:
@@ -175,11 +243,43 @@ jobs:
           environment: << parameters.environment >>
           app-name: << parameters.app-name >>
 
-      # Notify on successful deployment using built-in template
-      - slack/notify:
-          event: pass
-          template: basic_success_1
-          channel: C0A6655DKS6  # #circleci-builds channel ID
+      # Notify on successful deployment
+      - notify-slack:
+          message: "✅ *Deployed to << parameters.environment >>* - Robot Fleet API\\nApp: `<< parameters.app-name >>`"
+          color: "#36a64f"
+
+  # Notify that workflow is waiting for production approval
+  notify-awaiting-approval:
+    executor: node-executor
+    steps:
+      - run:
+          name: Notify Slack - Awaiting Approval
+          command: |
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "attachments": [{
+                  "color": "#ffc107",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "⏳ *Awaiting Production Approval* - Robot Fleet API\nStaging deployed successfully. Production deploy requires manual approval."
+                      }
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Branch:* '"$CIRCLE_BRANCH"' | *Commit:* '"${CIRCLE_SHA1:0:7}"' | <'"$CIRCLE_BUILD_URL"'|Approve in CircleCI>"
+                        }
+                      ]
+                    }
+                  ]
+                }]
+              }'
 
 # ============================================================================
 # WORKFLOWS: Orchestrate job execution with approval gates
@@ -241,11 +341,10 @@ workflows:
       # ──────────────────────────────────────────────────────────────
 
       # Slack notification: "Staging deployed, ready for prod approval"
-      - slack/on-hold:
-          context: slack-notifications
-          channel: C0A6655DKS6  # #circleci-builds channel ID
+      - notify-awaiting-approval:
           requires:
             - deploy-staging
+          context: slack-notifications
           filters:
             branches:
               only: main
@@ -254,8 +353,7 @@ workflows:
       - hold-for-production:
           type: approval
           requires:
-            - deploy-staging
-            - slack/on-hold
+            - notify-awaiting-approval
           filters:
             branches:
               only: main
@@ -307,14 +405,13 @@ workflows:
 #
 # 1. ORB VERSION PINNING:
 #    node@7.2.1    - Exact patch version for maximum reproducibility
-#    slack@6.1.2   - Exact version (maximum stability)
 #
-#    Why not @7 or @6? Because major version pins get breaking changes.
+#    Why not @7? Because major version pins get breaking changes.
 #    Why not @volatile? Because it's literally called "volatile" - never use it.
 #
 # 2. CONTEXT-BASED SECRETS:
 #    context: slack-notifications
-#    - Stores SLACK_ACCESS_TOKEN securely (required by slack orb)
+#    - Stores SLACK_WEBHOOK securely (webhook URL for notifications)
 #    - Scoped to organization
 #    - No secrets in config file
 #    - Least privilege access
