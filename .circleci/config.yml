@@ -8,7 +8,7 @@
 #   - Simulated Azure deployments (no actual cloud resources)
 #
 # TEACHING POINTS:
-#   - Orb version pinning strategy (@6.1.2 exact for stability)
+#   - Orb version pinning strategy (exact versions for stability)
 #   - Context-based secrets management (slack-notifications)
 #   - Notification strategy (fail fast on tests, confirm deployments)
 #   - Approval workflow pattern for production safety
@@ -20,8 +20,8 @@ version: 2.1
 # ORBS: Certified packages from CircleCI ecosystem
 # ============================================================================
 orbs:
-  node: circleci/node@6.1.0         # Node.js convenience commands with caching
-  slack: circleci/slack@4.14.0      # Slack notifications with rich templates
+  node: circleci/node@7.2.1         # Node.js convenience commands with caching
+  slack: circleci/slack@6.1.2       # Slack notifications with rich templates
 
 # ============================================================================
 # EXECUTORS: Reusable execution environments
@@ -29,7 +29,7 @@ orbs:
 executors:
   node-executor:
     docker:
-      - image: cimg/node:20.18.1    # Official CircleCI Node 20 LTS image
+      - image: cimg/node:22.16.0    # Official CircleCI Node 22 LTS image
     working_directory: ~/robot-fleet-api
     resource_class: medium          # 2 vCPU, 4GB RAM
 
@@ -175,59 +175,10 @@ jobs:
           environment: << parameters.environment >>
           app-name: << parameters.app-name >>
 
-      # Notify on successful deployment
+      # Notify on successful deployment using built-in template
       - slack/notify:
           event: pass
-          custom: |
-            {
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "🚀 Deployment Successful",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Environment:*\n<< parameters.environment >>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*App:*\n<< parameters.app-name >>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Branch:*\n${CIRCLE_BRANCH}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Commit:*\n${CIRCLE_SHA1:0:7}"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*URL:*\nhttps://<< parameters.app-name >>.azurecontainerapps.io"
-                  }
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "Pipeline #${CIRCLE_BUILD_NUM} | <${CIRCLE_BUILD_URL}|View Build>"
-                    }
-                  ]
-                }
-              ]
-            }
+          template: basic_success_1
           channel: C0A6655DKS6  # #circleci-builds channel ID
 
 # ============================================================================
@@ -249,7 +200,7 @@ workflows:
                 - /feature\/.*/
 
       # Test after successful build
-      # Context provides SLACK_WEBHOOK env var
+      # Context provides SLACK_ACCESS_TOKEN env var (required by slack orb)
       - test:
           requires:
             - build
@@ -292,6 +243,7 @@ workflows:
       # Slack notification: "Staging deployed, ready for prod approval"
       - slack/on-hold:
           context: slack-notifications
+          channel: C0A6655DKS6  # #circleci-builds channel ID
           requires:
             - deploy-staging
           filters:
@@ -354,15 +306,15 @@ workflows:
 # ============================================================================
 #
 # 1. ORB VERSION PINNING:
-#    node@6.1.0    - Gets all 6.1.x patches (recommended for stability)
-#    slack@4.14.0  - Exact version (maximum stability)
+#    node@7.2.1    - Exact patch version for maximum reproducibility
+#    slack@6.1.2   - Exact version (maximum stability)
 #
-#    Why not @6 or @4? Because major version pins get breaking changes.
+#    Why not @7 or @6? Because major version pins get breaking changes.
 #    Why not @volatile? Because it's literally called "volatile" - never use it.
 #
 # 2. CONTEXT-BASED SECRETS:
 #    context: slack-notifications
-#    - Stores SLACK_WEBHOOK securely
+#    - Stores SLACK_ACCESS_TOKEN securely (required by slack orb)
 #    - Scoped to organization
 #    - No secrets in config file
 #    - Least privilege access
