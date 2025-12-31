@@ -1,35 +1,13 @@
-# ============================================================================
-# MODULE 3: Production Orbs Integration with Custom Orb & Slack Notifications
-# ============================================================================
-# Real-world pipeline for the Globomantics Robot Fleet API:
-#   - circleci/node: Battle-tested Node.js workflows
-#   - globomantics/robot-fleet: Custom orb with health checks & validation
-#   - Slack webhook notifications to #circleci-builds
-#   - Approval gates before production
-#   - Simulated Azure deployments (no actual cloud resources)
-#
-# TEACHING POINTS:
-#   - Orb version pinning strategy (exact versions for stability)
-#   - Custom orb development and integration
-#   - Context-based secrets management (slack-notifications)
-#   - Notification strategy (fail fast on tests, confirm deployments)
-#   - Approval workflow pattern for production safety
-# ============================================================================
+# Globomantics Robot Fleet API - CircleCI Pipeline
 
 version: 2.1
 
-# ============================================================================
-# ORBS: Certified + Custom packages
-# ============================================================================
+# ORBS
 orbs:
-  node: circleci/node@7.2.1         # Node.js convenience commands with caching
+  node: circleci/node@7.2.1
+  slack: circleci/slack@4.13.3
 
-  # Custom Globomantics orb (inline for development)
-  # After publishing: robot-fleet: globomantics/robot-fleet@1.0.0
-  # Publishing commands:
-  #   circleci orb pack orb-source/src > orb-source/orb.yml
-  #   circleci orb publish orb-source/orb.yml globomantics/robot-fleet@dev:alpha
-  #   circleci orb publish promote globomantics/robot-fleet@dev:alpha patch
+  # Custom orb (inline for development, publish as globomantics/robot-fleet@1.0.0)
   robot-fleet:
     commands:
       health-check:
@@ -37,7 +15,6 @@ orbs:
         parameters:
           url:
             type: string
-            description: "Base URL of the API to check"
           endpoint:
             type: string
             default: "/api/health"
@@ -51,15 +28,10 @@ orbs:
           - run:
               name: Health Check - << parameters.url >><< parameters.endpoint >>
               command: |
-                echo "╔════════════════════════════════════════════════════╗"
-                echo "║     GLOBOMANTICS HEALTH CHECK                      ║"
-                echo "╠════════════════════════════════════════════════════╣"
-                echo "║  URL: << parameters.url >><< parameters.endpoint >>"
-                echo "║  Retries: << parameters.retries >>"
-                echo "╚════════════════════════════════════════════════════╝"
+                echo "Health Check: << parameters.url >><< parameters.endpoint >>"
+                echo "Retries: << parameters.retries >>"
 
                 for i in $(seq 1 << parameters.retries >>); do
-                  echo ""
                   echo "Attempt $i of << parameters.retries >>..."
 
                   if curl -sf --max-time 30 \
@@ -74,9 +46,7 @@ orbs:
                   fi
                 done
 
-                echo ""
                 echo "Health check FAILED after << parameters.retries >> attempts"
-                # Don't fail for simulated deployments
                 echo "(Continuing - simulated environment)"
 
       validate-deployment:
@@ -84,7 +54,6 @@ orbs:
         parameters:
           url:
             type: string
-            description: "Base URL of the deployed API"
           check-robots:
             type: boolean
             default: true
@@ -92,49 +61,37 @@ orbs:
           - run:
               name: Validate Deployment - << parameters.url >>
               command: |
-                echo "╔════════════════════════════════════════════════════╗"
-                echo "║     GLOBOMANTICS DEPLOYMENT VALIDATION             ║"
-                echo "╠════════════════════════════════════════════════════╣"
-                echo "║  URL: << parameters.url >>"
-                echo "╚════════════════════════════════════════════════════╝"
-
-                echo ""
-                echo "Checking health endpoint..."
+                echo "Validating: << parameters.url >>"
                 echo "  [PASS] Health endpoint responding (simulated)"
 
                 if [ "<< parameters.check-robots >>" = "true" ]; then
-                  echo ""
-                  echo "Checking robots endpoint..."
                   echo "  [PASS] Robots endpoint returning data (simulated)"
                 fi
 
-                echo ""
                 echo "All validation checks PASSED!"
 
-# ============================================================================
-# EXECUTORS: Reusable execution environments
-# ============================================================================
+# EXECUTORS
 executors:
   node-executor:
     docker:
-      - image: cimg/node:22.16.0    # Official CircleCI Node 22 LTS image
+      - image: cimg/node:22.16.0
     working_directory: ~/robot-fleet-api
-    resource_class: medium          # 2 vCPU, 4GB RAM
+    resource_class: medium
 
-# ============================================================================
-# COMMANDS: Reusable step sequences
-# ============================================================================
+  vm-executor:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: medium
+
+# COMMANDS
 commands:
-  # Send Slack notification via webhook (no orb required)
   notify-slack:
     parameters:
       message:
         type: string
-        description: "Message to send"
       color:
         type: string
         default: "#36a64f"
-        description: "Attachment color (green=#36a64f, red=#dc3545, yellow=#ffc107)"
     steps:
       - run:
           name: Send Slack Notification
@@ -142,6 +99,7 @@ commands:
             curl -X POST "$SLACK_WEBHOOK" \
               -H "Content-Type: application/json" \
               -d '{
+                "channel": "#circleci-builds",
                 "attachments": [{
                   "color": "<< parameters.color >>",
                   "blocks": [
@@ -149,7 +107,7 @@ commands:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "<< parameters.message >>"
+                        "text": "[WEBHOOK] << parameters.message >>"
                       }
                     },
                     {
@@ -165,7 +123,6 @@ commands:
                 }]
               }'
 
-  # Notify on failure (for use in test jobs)
   notify-slack-on-failure:
     steps:
       - run:
@@ -175,6 +132,7 @@ commands:
             curl -X POST "$SLACK_WEBHOOK" \
               -H "Content-Type: application/json" \
               -d '{
+                "channel": "#circleci-builds",
                 "attachments": [{
                   "color": "#dc3545",
                   "blocks": [
@@ -182,7 +140,7 @@ commands:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "❌ *Build Failed* - Robot Fleet API\n'"$CIRCLE_JOB"' failed on branch `'"$CIRCLE_BRANCH"'`"
+                        "text": "[WEBHOOK] Build Failed - Robot Fleet API\n'"$CIRCLE_JOB"' failed on branch `'"$CIRCLE_BRANCH"'`"
                       }
                     },
                     {
@@ -190,7 +148,7 @@ commands:
                       "elements": [
                         {
                           "type": "mrkdwn",
-                          "text": "*Commit:* '"${CIRCLE_SHA1:0:7}"' | <'"$CIRCLE_BUILD_URL"'|View Build>"
+                          "text": "*Branch:* '"$CIRCLE_BRANCH"' | *Commit:* '"${CIRCLE_SHA1:0:7}"' | <'"$CIRCLE_BUILD_URL"'|View Build>"
                         }
                       ]
                     }
@@ -198,87 +156,59 @@ commands:
                 }]
               }'
 
-  # Simulate Azure deployment without actual cloud resources
   simulate-azure-deployment:
     parameters:
       environment:
         type: enum
         enum: [dev, staging, prod]
-        description: "Target environment"
       app-name:
         type: string
-        description: "Azure Container App name"
     steps:
       - run:
           name: Simulate Azure Container Build
           command: |
-            echo "════════════════════════════════════════════════════════"
-            echo "  SIMULATED: Building container image"
-            echo "════════════════════════════════════════════════════════"
-            echo "Image: robot-fleet-api:${CIRCLE_SHA1:0:7}"
+            echo "Building container image: robot-fleet-api:${CIRCLE_SHA1:0:7}"
             echo "Environment: << parameters.environment >>"
-            echo "Build completed successfully ✓"
-            sleep 2  # Simulate build time
+            sleep 2
 
       - run:
           name: Simulate Azure Container App Deployment
           command: |
-            echo "════════════════════════════════════════════════════════"
-            echo "  SIMULATED: Deploying to Azure Container Apps"
-            echo "════════════════════════════════════════════════════════"
-            echo "App Name: << parameters.app-name >>"
+            echo "Deploying to Azure Container Apps"
+            echo "App: << parameters.app-name >>"
             echo "Resource Group: rg-globomantics-<< parameters.environment >>"
             echo "Image: robot-fleet-api:${CIRCLE_SHA1:0:7}"
             echo ""
-            echo "Deployment steps:"
-            echo "  1. Authenticating to Azure... ✓"
-            echo "  2. Pushing image to ACR... ✓"
-            echo "  3. Updating container app... ✓"
-            echo "  4. Verifying health check... ✓"
+            echo "  1. Authenticating to Azure..."
+            echo "  2. Pushing image to ACR..."
+            echo "  3. Updating container app..."
+            echo "  4. Verifying health check..."
             echo ""
-            echo "Deployment URL: https://<< parameters.app-name >>.azurecontainerapps.io"
-            echo "Status: RUNNING"
-            echo ""
-            echo "Deployment completed successfully ✓"
+            echo "URL: https://<< parameters.app-name >>.azurecontainerapps.io"
 
       - run:
           name: Simulate Health Check
           command: |
-            echo "════════════════════════════════════════════════════════"
-            echo "  SIMULATED: Health Check"
-            echo "════════════════════════════════════════════════════════"
-            echo "Endpoint: https://<< parameters.app-name >>.azurecontainerapps.io/api/health"
-            echo ""
+            echo "Health Check: https://<< parameters.app-name >>.azurecontainerapps.io/api/health"
             for i in {1..3}; do
-              echo "Attempt $i/3... ✓ HTTP 200 OK"
+              echo "Attempt $i/3... HTTP 200 OK"
               sleep 1
             done
-            echo ""
-            echo "Health check passed ✓"
 
-# ============================================================================
-# JOBS: Complete units of work
-# ============================================================================
+# JOBS
 jobs:
-  # Build the application and cache dependencies
   build:
     executor: node-executor
     steps:
       - checkout
-
-      # Orb command handles: restore_cache, npm ci, save_cache automatically
       - node/install-packages:
           pkg-manager: npm
           cache-version: v1
-
       - run:
           name: Build Application
           command: |
             echo "Building Robot Fleet API..."
             npm run build
-            echo "Build completed successfully ✓"
-
-      # Persist artifacts for downstream jobs
       - persist_to_workspace:
           root: .
           paths:
@@ -286,112 +216,126 @@ jobs:
             - dist
             - package*.json
 
-  # Run test suite with Slack notification on failure
+  # Machine executor required for Docker-in-Docker
+  build-image:
+    executor: vm-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build Docker Image
+          command: |
+            IMAGE_TAG="robot-fleet-api:${CIRCLE_SHA1:0:7}"
+            echo "Building Docker image: $IMAGE_TAG"
+            docker build -t $IMAGE_TAG .
+      - run:
+          name: Smoke Test Container
+          command: |
+            IMAGE_TAG="robot-fleet-api:${CIRCLE_SHA1:0:7}"
+            docker run -d --name smoke-test -p 3000:3000 $IMAGE_TAG
+            sleep 5
+
+            if curl -sf --max-time 10 http://localhost:3000/api/health; then
+              echo "Smoke test PASSED"
+            else
+              docker logs smoke-test
+              exit 1
+            fi
+
+            docker stop smoke-test
+            docker rm smoke-test
+
   test:
     executor: node-executor
     steps:
       - checkout
       - attach_workspace:
           at: .
-
       - run:
           name: Run Unit Tests
-          command: |
-            echo "Running Robot Fleet API test suite..."
-            npm test
-            echo "Tests completed successfully ✓"
-
+          command: npm test
       - store_test_results:
           path: test-results
-
       - store_artifacts:
           path: coverage
           destination: coverage-report
-
-      # CRITICAL: Notify on test failure (fail fast pattern)
+      # Both notification methods fire on failure - compare in Slack
       - notify-slack-on-failure
+      - slack/notify:
+          event: fail
+          channel: circleci-builds
+          template: basic_fail_1
 
-  # Simulate deployment to Azure environment
   deploy:
     executor: node-executor
     parameters:
       environment:
         type: enum
         enum: [dev, staging, prod]
-        description: "Deployment environment"
       app-name:
         type: string
-        description: "Azure Container App name"
     steps:
       - checkout
       - attach_workspace:
           at: .
-
-      # Simulate Azure deployment (no actual cloud resources)
       - simulate-azure-deployment:
           environment: << parameters.environment >>
           app-name: << parameters.app-name >>
-
-      # Use custom orb's health check with retry logic
       - robot-fleet/health-check:
           url: https://<< parameters.app-name >>.azurecontainerapps.io
           endpoint: /api/health
           retries: 3
           retry-delay: 5
-
-      # Use custom orb's deployment validation
       - robot-fleet/validate-deployment:
           url: https://<< parameters.app-name >>.azurecontainerapps.io
           check-robots: true
-
-      # Notify on successful deployment
       - notify-slack:
-          message: "✅ *Deployed to << parameters.environment >>* - Robot Fleet API\\nApp: `<< parameters.app-name >>`"
+          message: "Deployed to << parameters.environment >> - Robot Fleet API\\nApp: `<< parameters.app-name >>`"
           color: "#36a64f"
 
-  # Notify that workflow is waiting for production approval
   notify-awaiting-approval:
     executor: node-executor
     steps:
-      - run:
-          name: Notify Slack - Awaiting Approval
-          command: |
-            curl -X POST "$SLACK_WEBHOOK" \
-              -H "Content-Type: application/json" \
-              -d '{
-                "attachments": [{
-                  "color": "#ffc107",
-                  "blocks": [
+      - notify-slack:
+          message: "Awaiting Production Approval - Robot Fleet API\\nStaging deployed. Manual approval required."
+          color: "#ffc107"
+
+  # Alternative: Slack orb approach (requires SLACK_ACCESS_TOKEN instead of SLACK_WEBHOOK)
+  notify-awaiting-approval-orb:
+    executor: node-executor
+    steps:
+      - slack/notify:
+          event: always
+          channel: circleci-builds
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "[ORB] Awaiting Production Approval - Robot Fleet API\nStaging deployed. Manual approval required."
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
                     {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "⏳ *Awaiting Production Approval* - Robot Fleet API\nStaging deployed successfully. Production deploy requires manual approval."
-                      }
-                    },
-                    {
-                      "type": "context",
-                      "elements": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Branch:* '"$CIRCLE_BRANCH"' | *Commit:* '"${CIRCLE_SHA1:0:7}"' | <'"$CIRCLE_BUILD_URL"'|Approve in CircleCI>"
-                        }
-                      ]
+                      "type": "mrkdwn",
+                      "text": "*Branch:* $CIRCLE_BRANCH | *Commit:* ${CIRCLE_SHA1:0:7} | <$CIRCLE_BUILD_URL|Approve in CircleCI>"
                     }
                   ]
-                }]
-              }'
+                }
+              ]
+            }
 
-# ============================================================================
-# WORKFLOWS: Orchestrate job execution with approval gates
-# ============================================================================
+# WORKFLOWS
 workflows:
   version: 2
 
-  # Primary workflow: Build → Test → Dev → Staging → Approve → Prod
   build-test-deploy:
     jobs:
-      # Build on all branches
       - build:
           filters:
             branches:
@@ -400,16 +344,16 @@ workflows:
                 - develop
                 - /feature\/.*/
 
-      # Test after successful build
-      # Context provides SLACK_ACCESS_TOKEN env var (required by slack orb)
       - test:
           requires:
             - build
           context: slack-notifications
 
-      # ──────────────────────────────────────────────────────────────
-      # DEV ENVIRONMENT: Auto-deploy after tests pass
-      # ──────────────────────────────────────────────────────────────
+      - build-image:
+          requires:
+            - build
+
+      # Dev: auto-deploy from feature branches
       - deploy:
           name: deploy-dev
           environment: dev
@@ -423,9 +367,7 @@ workflows:
                 - develop
                 - /feature\/.*/
 
-      # ──────────────────────────────────────────────────────────────
-      # STAGING ENVIRONMENT: Auto-deploy from main branch only
-      # ──────────────────────────────────────────────────────────────
+      # Staging: auto-deploy from main
       - deploy:
           name: deploy-staging
           environment: staging
@@ -437,11 +379,7 @@ workflows:
             branches:
               only: main
 
-      # ──────────────────────────────────────────────────────────────
-      # APPROVAL GATE: Manual intervention required for production
-      # ──────────────────────────────────────────────────────────────
-
-      # Slack notification: "Staging deployed, ready for prod approval"
+      # Webhook approach (uses SLACK_WEBHOOK)
       - notify-awaiting-approval:
           requires:
             - deploy-staging
@@ -450,7 +388,16 @@ workflows:
             branches:
               only: main
 
-      # Pause workflow for human approval
+      # Orb approach (uses SLACK_ACCESS_TOKEN) - runs in parallel to compare
+      - notify-awaiting-approval-orb:
+          requires:
+            - deploy-staging
+          context: slack-notifications
+          filters:
+            branches:
+              only: main
+
+      # Production: requires manual approval
       - hold-for-production:
           type: approval
           requires:
@@ -459,9 +406,6 @@ workflows:
             branches:
               only: main
 
-      # ──────────────────────────────────────────────────────────────
-      # PRODUCTION ENVIRONMENT: Only after manual approval
-      # ──────────────────────────────────────────────────────────────
       - deploy:
           name: deploy-prod
           environment: prod
@@ -473,78 +417,12 @@ workflows:
             branches:
               only: main
 
-# ============================================================================
-# DEMO SCENARIOS
-# ============================================================================
-#
-# Scenario 1: Feature Branch
-# ──────────────────────────────────────────────────────────────────────────
-# Branch: feature/new-robot-endpoint
-# Flow: build → test → deploy-dev
-# Notifications: Test failure (if tests fail)
-#                Deployment success (dev environment)
-#
-# Scenario 2: Main Branch (Full Pipeline)
-# ──────────────────────────────────────────────────────────────────────────
-# Branch: main
-# Flow: build → test → deploy-staging → [approval gate] → deploy-prod
-# Notifications: Test failure (if tests fail)
-#                Staging deployment success
-#                Production approval needed
-#                Production deployment success
-#
-# Scenario 3: Test Failure
-# ──────────────────────────────────────────────────────────────────────────
-# Branch: any
-# Flow: build → test [FAILS]
-# Notifications: Slack alert to #circleci-builds with failure details
-# Result: Pipeline stops, no deployments occur
-#
-# ============================================================================
-# TEACHING POINTS DEMONSTRATED
-# ============================================================================
-#
-# 1. ORB VERSION PINNING:
-#    node@7.2.1           - Certified orb, exact patch version
-#    robot-fleet@dev:alpha - Custom orb, dev channel for testing
-#
-#    Channels: dev (unstable), @x.y.z (stable), @volatile (never use)
-#
-# 2. CUSTOM ORB INTEGRATION:
-#    robot-fleet/health-check      - Retry logic for deployment verification
-#    robot-fleet/validate-deployment - Comprehensive deployment checks
-#
-#    Publishing workflow:
-#      circleci orb pack orb-source/src > orb.yml
-#      circleci orb publish orb.yml globomantics/robot-fleet@dev:alpha
-#      circleci orb publish promote globomantics/robot-fleet@dev:alpha patch
-#
-# 3. CONTEXT-BASED SECRETS:
-#    context: slack-notifications
-#    - Stores SLACK_WEBHOOK securely (webhook URL for notifications)
-#    - Scoped to organization
-#    - No secrets in config file
-#    - Least privilege access
-#
-# 4. NOTIFICATION STRATEGY:
-#    Tests: Notify on FAILURE only (fail fast)
-#    Deployments: Notify on SUCCESS (confirmation)
-#    Why? Tests fail frequently during dev, but deployments are milestones.
-#
-# 5. APPROVAL GATES:
-#    type: approval pauses the workflow
-#    Human clicks "Approve" in CircleCI UI
-#    Audit trail: who approved, when, from which IP
-#    Compliance requirement for production changes
-#
-# 6. WORKSPACE PERSISTENCE:
-#    persist_to_workspace: Saves build artifacts
-#    attach_workspace: Loads artifacts in downstream jobs
-#    Why? Avoids rebuilding in every job (faster, more reliable)
-#
-# 7. BRANCH FILTERING:
-#    Feature branches → dev only
-#    Main branch → staging + prod (after approval)
-#    Prevents accidental production deployments from feature branches
-#
-# ============================================================================
+# Summary:
+# - Orbs: node@7.2.1, slack@4.13.3, custom robot-fleet (inline)
+# - Flow: build -> test/build-image -> deploy (dev/staging/prod)
+# - Branches: feature/* -> dev, main -> staging + prod (with approval)
+# - Slack notifications demonstrate BOTH methods:
+#     [WEBHOOK] - manual curl, uses SLACK_WEBHOOK env var
+#     [ORB] - slack/notify, uses SLACK_ACCESS_TOKEN (OAuth)
+# - Context 'slack-notifications' provides both secrets
+# - Machine executor used for Docker image builds (Docker-in-Docker)

@@ -16,7 +16,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         h1 {
@@ -70,10 +70,26 @@
         .legend-dot.trigger { background: #1e40af; }
         .legend-dot.orb { background: #0891b2; }
         .legend-dot.build { background: #0369a1; }
+        .legend-dot.buildimage { background: #475569; }
         .legend-dot.test { background: #7c3aed; }
         .legend-dot.deploy { background: #c2410c; }
         .legend-dot.approval { background: #ca8a04; }
         .legend-dot.prod { background: #be185d; }
+        .legend-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #1e293b;
+            border-radius: 8px;
+        }
+        .legend-section-title {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
         footer {
             text-align: center;
             color: #64748b;
@@ -85,7 +101,7 @@
 <body>
     <div class="container">
         <h1>Robot Fleet API Pipeline</h1>
-        <p class="subtitle">CircleCI Workflow Architecture</p>
+        <p class="subtitle">WORKFLOW: build-test-deploy | CircleCI Object Model</p>
 
         <div class="diagram-container">
             <pre class="mermaid">
@@ -97,48 +113,88 @@
   }
 }}%%
 flowchart TB
-    subgraph TRIGGER["📥 TRIGGER"]
+    subgraph TRIGGER["TRIGGER"]
         PUSH[/"Git Push"/]
     end
 
-    subgraph ORBS["📦 ORBS"]
+    subgraph ORBS["ORBS"]
         NODE_ORB["circleci/node@7.2.1"]
+        SLACK_ORB["circleci/slack@4.13.3"]
         CUSTOM_ORB["robot-fleet — custom orb"]
     end
 
-    subgraph BUILD_STAGE["🔨 BUILD"]
-        BUILD["<b>build</b><br/>checkout → install → build<br/>→ persist workspace"]
+    subgraph BUILD_STAGE["JOB: build"]
+        direction TB
+        BUILD["<b>build</b><br/><i>node-executor docker</i>"]
+        BUILD_STEPS["<b>STEPS:</b><br/>checkout<br/>node/install-packages<br/>npm run build<br/>persist_to_workspace"]
     end
 
-    subgraph TEST_STAGE["🧪 TEST"]
-        TEST["<b>test</b><br/>npm test → store results<br/>→ notify on fail ❌"]
+    subgraph PARALLEL_JOBS["PARALLEL JOBS after build"]
+        direction LR
+        subgraph TEST_JOB["JOB: test"]
+            TEST["<b>test</b><br/><i>node-executor docker</i>"]
+            TEST_STEPS["<b>STEPS:</b><br/>attach_workspace<br/>npm test<br/>store_test_results<br/>store_artifacts<br/>[WEBHOOK] notify-slack-on-failure<br/>[ORB] slack/notify event:fail"]
+        end
+        subgraph IMAGE_JOB["JOB: build-image"]
+            BUILD_IMAGE["<b>build-image</b><br/><i>vm-executor machine</i>"]
+            BUILD_IMAGE_STEPS["<b>STEPS:</b><br/>checkout<br/>docker build<br/>docker push to ACR"]
+        end
     end
 
-    subgraph DEPLOY_DEV["🚀 DEV — feature/develop branches"]
-        DEV["<b>deploy-dev</b><br/>Azure deploy → health-check<br/>→ validate → notify ✅"]
+    subgraph DEPLOY_DEV["JOB: deploy-dev — feature/develop branches"]
+        DEV["<b>deploy-dev</b><br/><i>node-executor docker</i>"]
+        DEV_STEPS["<b>STEPS:</b><br/>simulate-azure-deployment<br/>robot-fleet/health-check<br/>robot-fleet/validate-deployment<br/>notify-slack"]
     end
 
-    subgraph DEPLOY_MAIN["🚀 MAIN BRANCH ONLY"]
-        STAGING["<b>deploy-staging</b><br/>Azure deploy → health-check<br/>→ validate → notify ✅"]
+    subgraph DEPLOY_MAIN["MAIN BRANCH ONLY"]
+        subgraph STAGING_JOB["JOB: deploy-staging"]
+            STAGING["<b>deploy-staging</b><br/><i>node-executor docker</i>"]
+            STAGING_STEPS["<b>STEPS:</b><br/>simulate-azure-deployment<br/>robot-fleet/health-check<br/>robot-fleet/validate-deployment<br/>notify-slack"]
+        end
 
-        NOTIFY_AWAIT["⏳ <b>notify-awaiting-approval</b><br/>Slack notification"]
+        subgraph NOTIFY_PARALLEL["PARALLEL: Compare Notification Methods"]
+            direction LR
+            subgraph NOTIFY_WEBHOOK["JOB: notify-awaiting-approval"]
+                NOTIFY_AWAIT["<b>notify-awaiting-approval</b><br/><i>[WEBHOOK] method</i>"]
+                NOTIFY_STEPS["<b>STEPS:</b><br/>notify-slack command"]
+            end
+            subgraph NOTIFY_ORB["JOB: notify-awaiting-approval-orb"]
+                NOTIFY_AWAIT_ORB["<b>notify-awaiting-approval-orb</b><br/><i>[ORB] method</i>"]
+                NOTIFY_ORB_STEPS["<b>STEPS:</b><br/>slack/notify"]
+            end
+        end
 
-        APPROVAL{{"⏸️ <b>hold-for-production</b><br/>MANUAL APPROVAL"}}
+        APPROVAL{{"JOB: hold-for-production<br/><b>type: approval</b><br/>MANUAL APPROVAL"}}
 
-        PROD["<b>deploy-prod</b><br/>Azure deploy → health-check<br/>→ validate → notify ✅"]
+        subgraph PROD_JOB["JOB: deploy-prod"]
+            PROD["<b>deploy-prod</b><br/><i>node-executor docker</i>"]
+            PROD_STEPS["<b>STEPS:</b><br/>simulate-azure-deployment<br/>robot-fleet/health-check<br/>robot-fleet/validate-deployment<br/>notify-slack"]
+        end
     end
 
     %% Main flow
     PUSH --> BUILD
-    BUILD --> TEST
-    TEST -->|"feature/* develop"| DEV
-    TEST -->|"main"| STAGING
-    STAGING --> NOTIFY_AWAIT
-    NOTIFY_AWAIT --> APPROVAL
-    APPROVAL -->|"Approved ✓"| PROD
+    BUILD --> BUILD_STEPS
+    BUILD_STEPS --> TEST
+    BUILD_STEPS --> BUILD_IMAGE
+    TEST --> TEST_STEPS
+    BUILD_IMAGE --> BUILD_IMAGE_STEPS
+    TEST_STEPS -->|"feature/* develop"| DEV
+    TEST_STEPS & BUILD_IMAGE_STEPS -->|"main"| STAGING
+    DEV --> DEV_STEPS
+    STAGING --> STAGING_STEPS
+    STAGING_STEPS --> NOTIFY_AWAIT
+    STAGING_STEPS --> NOTIFY_AWAIT_ORB
+    NOTIFY_AWAIT --> NOTIFY_STEPS
+    NOTIFY_AWAIT_ORB --> NOTIFY_ORB_STEPS
+    NOTIFY_STEPS --> APPROVAL
+    APPROVAL -->|"Approved"| PROD
+    PROD --> PROD_STEPS
 
     %% Orb connections
     NODE_ORB -.->|"install-packages"| BUILD
+    SLACK_ORB -.->|"slack/notify"| NOTIFY_AWAIT_ORB
+    SLACK_ORB -.->|"event: fail"| TEST
     CUSTOM_ORB -.->|"health-check validate"| DEV
     CUSTOM_ORB -.->|"health-check validate"| STAGING
     CUSTOM_ORB -.->|"health-check validate"| PROD
@@ -147,54 +203,98 @@ flowchart TB
     classDef trigger fill:#1e40af,stroke:#1e3a8a,color:#fff,stroke-width:2px
     classDef orb fill:#0891b2,stroke:#0e7490,color:#fff,stroke-width:2px
     classDef build fill:#0369a1,stroke:#075985,color:#fff,stroke-width:2px
+    classDef buildimage fill:#475569,stroke:#334155,color:#fff,stroke-width:2px
     classDef test fill:#7c3aed,stroke:#6d28d9,color:#fff,stroke-width:2px
     classDef deploy fill:#c2410c,stroke:#9a3412,color:#fff,stroke-width:2px
     classDef approval fill:#ca8a04,stroke:#a16207,color:#000,stroke-width:3px
     classDef prod fill:#be185d,stroke:#9d174d,color:#fff,stroke-width:2px
+    classDef steps fill:#f1f5f9,stroke:#cbd5e1,color:#334155,stroke-width:1px,font-size:11px
 
     class PUSH trigger
-    class NODE_ORB,CUSTOM_ORB orb
+    class NODE_ORB,SLACK_ORB,CUSTOM_ORB orb
     class BUILD build
+    class BUILD_IMAGE buildimage
     class TEST test
     class DEV,STAGING,NOTIFY_AWAIT deploy
+    class NOTIFY_AWAIT_ORB orb
     class APPROVAL approval
     class PROD prod
+    class BUILD_STEPS,TEST_STEPS,BUILD_IMAGE_STEPS,DEV_STEPS,STAGING_STEPS,NOTIFY_STEPS,NOTIFY_ORB_STEPS,PROD_STEPS steps
             </pre>
         </div>
 
         <div class="legend">
-            <div class="legend-item">
-                <div class="legend-dot trigger"></div>
-                <span>Trigger</span>
+            <div class="legend-section">
+                <div class="legend-section-title">Object Model</div>
+                <div class="legend-item">
+                    <span>WORKFLOW: build-test-deploy</span>
+                </div>
+                <div class="legend-item">
+                    <span>JOB: Unit of work with steps</span>
+                </div>
+                <div class="legend-item">
+                    <span>STEP: Individual command/action</span>
+                </div>
             </div>
-            <div class="legend-item">
-                <div class="legend-dot orb"></div>
-                <span>Orbs</span>
+            <div class="legend-section">
+                <div class="legend-section-title">Slack Methods</div>
+                <div class="legend-item">
+                    <span>[WEBHOOK] curl + SLACK_WEBHOOK</span>
+                </div>
+                <div class="legend-item">
+                    <span>[ORB] slack/notify + SLACK_ACCESS_TOKEN</span>
+                </div>
             </div>
-            <div class="legend-item">
-                <div class="legend-dot build"></div>
-                <span>Build</span>
+            <div class="legend-section">
+                <div class="legend-section-title">Executors</div>
+                <div class="legend-item">
+                    <div class="legend-dot build"></div>
+                    <span>node-executor (docker)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot buildimage"></div>
+                    <span>vm-executor (machine)</span>
+                </div>
             </div>
-            <div class="legend-item">
-                <div class="legend-dot test"></div>
-                <span>Test</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-dot deploy"></div>
-                <span>Deploy</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-dot approval"></div>
-                <span>Approval Gate</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-dot prod"></div>
-                <span>Production</span>
+            <div class="legend-section">
+                <div class="legend-section-title">Job Types</div>
+                <div class="legend-item">
+                    <div class="legend-dot trigger"></div>
+                    <span>Trigger</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot orb"></div>
+                    <span>Orbs</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot build"></div>
+                    <span>Build</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot buildimage"></div>
+                    <span>Build Image (Docker-in-Docker)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot test"></div>
+                    <span>Test</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot deploy"></div>
+                    <span>Deploy</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot approval"></div>
+                    <span>Approval Gate</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot prod"></div>
+                    <span>Production</span>
+                </div>
             </div>
         </div>
 
         <footer>
-            Globomantics Robot Fleet API &bull; CircleCI Advanced Configuration
+            Globomantics Robot Fleet API | CircleCI Advanced Configuration | WORKFLOW: build-test-deploy
         </footer>
     </div>
 
