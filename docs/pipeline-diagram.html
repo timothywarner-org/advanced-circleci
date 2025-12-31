@@ -3,181 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CircleCI Pipeline - Globomantics Robot Fleet API</title>
+    <title>CircleCI Pipeline - Robot Fleet API</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background: #0f172a;
             color: #e2e8f0;
             margin: 0;
-            padding: 20px;
+            padding: 40px 20px;
             min-height: 100vh;
         }
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
         }
         h1 {
             text-align: center;
             color: #fff;
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
         }
         .subtitle {
             text-align: center;
-            color: #a0aec0;
+            color: #94a3b8;
             margin-bottom: 2rem;
+            font-size: 1rem;
         }
         .diagram-container {
-            background: #fff;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            margin-bottom: 2rem;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
         }
         .mermaid {
             display: flex;
             justify-content: center;
         }
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
         .legend {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
             gap: 1rem;
-            margin-top: 2rem;
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #334155;
         }
         .legend-item {
-            background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 1rem;
-            border-left: 4px solid;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #cbd5e1;
         }
-        .legend-item.trigger { border-color: #1e3a5f; }
-        .legend-item.orb { border-color: #805ad5; }
-        .legend-item.build { border-color: #22543d; }
-        .legend-item.test { border-color: #3b82f6; }
-        .legend-item.deploy { border-color: #ea580c; }
-        .legend-item.approval { border-color: #f59e0b; }
-        .legend-item.prod { border-color: #dc2626; }
-        .legend-item h3 { margin: 0 0 0.5rem 0; font-size: 1rem; }
-        .legend-item p { margin: 0; font-size: 0.875rem; color: #a0aec0; }
+        .legend-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        .legend-dot.trigger { background: #1e40af; }
+        .legend-dot.orb { background: #0891b2; }
+        .legend-dot.build { background: #0369a1; }
+        .legend-dot.test { background: #7c3aed; }
+        .legend-dot.deploy { background: #c2410c; }
+        .legend-dot.approval { background: #ca8a04; }
+        .legend-dot.prod { background: #be185d; }
         footer {
             text-align: center;
-            color: #718096;
-            font-size: 0.875rem;
+            color: #64748b;
+            font-size: 0.75rem;
             margin-top: 2rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>CircleCI Pipeline Architecture</h1>
-        <p class="subtitle">Globomantics Robot Fleet API - Build, Test, Deploy Workflow</p>
+        <h1>Robot Fleet API Pipeline</h1>
+        <p class="subtitle">CircleCI Workflow Architecture</p>
 
         <div class="diagram-container">
             <pre class="mermaid">
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#1a365d', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2c5282', 'lineColor': '#4a5568', 'secondaryColor': '#2d3748', 'fontFamily': 'Arial, sans-serif'}}}%%
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontSize': '13px',
+    'fontFamily': 'system-ui, sans-serif'
+  }
+}}%%
 flowchart TB
-    subgraph TRIGGER["&nbsp; GIT PUSH &nbsp;"]
-        PUSH[/"Push to Repository"/]
+    subgraph TRIGGER["📥 TRIGGER"]
+        PUSH[/"Git Push"/]
     end
 
-    subgraph ORBS["&nbsp; ORBS &nbsp;"]
+    subgraph ORBS["📦 ORBS"]
         NODE_ORB["circleci/node@7.2.1"]
-        CUSTOM_ORB["robot-fleet - custom orb"]
+        CUSTOM_ORB["robot-fleet — custom orb"]
     end
 
-    subgraph BUILD_STAGE["&nbsp; BUILD STAGE &nbsp;"]
-        BUILD["BUILD JOB<br/>━━━━━━━━━━━━━<br/>checkout<br/>node/install-packages<br/>npm run build<br/>persist_to_workspace"]
+    subgraph BUILD_STAGE["🔨 BUILD"]
+        BUILD["<b>build</b><br/>checkout → install → build<br/>→ persist workspace"]
     end
 
-    subgraph TEST_STAGE["&nbsp; TEST STAGE &nbsp;"]
-        TEST["TEST JOB<br/>━━━━━━━━━━━━━<br/>attach_workspace<br/>npm test<br/>store_test_results<br/>notify-slack-on-failure"]
+    subgraph TEST_STAGE["🧪 TEST"]
+        TEST["<b>test</b><br/>npm test → store results<br/>→ notify on fail ❌"]
     end
 
-    subgraph DEPLOY_FEATURE["&nbsp; FEATURE/DEVELOP BRANCHES &nbsp;"]
-        DEV["DEPLOY-DEV<br/>━━━━━━━━━━━━━<br/>simulate-azure-deployment<br/>robot-fleet/health-check<br/>robot-fleet/validate-deployment<br/>notify-slack SUCCESS"]
+    subgraph DEPLOY_DEV["🚀 DEV — feature/develop branches"]
+        DEV["<b>deploy-dev</b><br/>Azure deploy → health-check<br/>→ validate → notify ✅"]
     end
 
-    subgraph DEPLOY_MAIN["&nbsp; MAIN BRANCH PIPELINE &nbsp;"]
-        STAGING["DEPLOY-STAGING<br/>━━━━━━━━━━━━━<br/>simulate-azure-deployment<br/>robot-fleet/health-check<br/>robot-fleet/validate-deployment<br/>notify-slack SUCCESS"]
+    subgraph DEPLOY_MAIN["🚀 MAIN BRANCH ONLY"]
+        STAGING["<b>deploy-staging</b><br/>Azure deploy → health-check<br/>→ validate → notify ✅"]
 
-        NOTIFY_AWAIT["NOTIFY-AWAITING-APPROVAL<br/>━━━━━━━━━━━━━<br/>Slack: Awaiting Approval"]
+        NOTIFY_AWAIT["⏳ <b>notify-awaiting-approval</b><br/>Slack notification"]
 
-        APPROVAL{{"HOLD-FOR-PRODUCTION<br/>━━━━━━━━━━━━━<br/>MANUAL APPROVAL<br/>REQUIRED"}}
+        APPROVAL{{"⏸️ <b>hold-for-production</b><br/>MANUAL APPROVAL"}}
 
-        PROD["DEPLOY-PROD<br/>━━━━━━━━━━━━━<br/>simulate-azure-deployment<br/>robot-fleet/health-check<br/>robot-fleet/validate-deployment<br/>notify-slack SUCCESS"]
+        PROD["<b>deploy-prod</b><br/>Azure deploy → health-check<br/>→ validate → notify ✅"]
     end
 
-    %% Main flow connections
+    %% Main flow
     PUSH --> BUILD
     BUILD --> TEST
-    TEST -->|"feature/* or develop"| DEV
-    TEST -->|"main branch"| STAGING
+    TEST -->|"feature/* develop"| DEV
+    TEST -->|"main"| STAGING
     STAGING --> NOTIFY_AWAIT
     NOTIFY_AWAIT --> APPROVAL
-    APPROVAL -->|"Approved"| PROD
+    APPROVAL -->|"Approved ✓"| PROD
 
-    %% Orb usage dotted lines
+    %% Orb connections
     NODE_ORB -.->|"install-packages"| BUILD
-    CUSTOM_ORB -.->|"health-check<br/>validate-deployment"| DEV
-    CUSTOM_ORB -.->|"health-check<br/>validate-deployment"| STAGING
-    CUSTOM_ORB -.->|"health-check<br/>validate-deployment"| PROD
+    CUSTOM_ORB -.->|"health-check validate"| DEV
+    CUSTOM_ORB -.->|"health-check validate"| STAGING
+    CUSTOM_ORB -.->|"health-check validate"| PROD
 
-    %% Styling classes
-    classDef triggerStyle fill:#1e3a5f,stroke:#2c5282,color:#fff,stroke-width:2px,font-weight:bold
-    classDef orbStyle fill:#553c9a,stroke:#805ad5,color:#fff,stroke-width:2px
-    classDef buildStyle fill:#22543d,stroke:#38a169,color:#fff,stroke-width:2px
-    classDef testStyle fill:#1e40af,stroke:#3b82f6,color:#fff,stroke-width:2px
-    classDef deployStyle fill:#9a3412,stroke:#ea580c,color:#fff,stroke-width:2px
-    classDef approvalStyle fill:#d97706,stroke:#f59e0b,color:#000,stroke-width:3px,font-weight:bold
-    classDef prodStyle fill:#991b1b,stroke:#dc2626,color:#fff,stroke-width:2px
+    %% Styling - Colorblind safe palette (no red/green)
+    classDef trigger fill:#1e40af,stroke:#1e3a8a,color:#fff,stroke-width:2px
+    classDef orb fill:#0891b2,stroke:#0e7490,color:#fff,stroke-width:2px
+    classDef build fill:#0369a1,stroke:#075985,color:#fff,stroke-width:2px
+    classDef test fill:#7c3aed,stroke:#6d28d9,color:#fff,stroke-width:2px
+    classDef deploy fill:#c2410c,stroke:#9a3412,color:#fff,stroke-width:2px
+    classDef approval fill:#ca8a04,stroke:#a16207,color:#000,stroke-width:3px
+    classDef prod fill:#be185d,stroke:#9d174d,color:#fff,stroke-width:2px
 
-    class PUSH triggerStyle
-    class NODE_ORB,CUSTOM_ORB orbStyle
-    class BUILD buildStyle
-    class TEST testStyle
-    class DEV,STAGING deployStyle
-    class APPROVAL approvalStyle
-    class PROD prodStyle
+    class PUSH trigger
+    class NODE_ORB,CUSTOM_ORB orb
+    class BUILD build
+    class TEST test
+    class DEV,STAGING,NOTIFY_AWAIT deploy
+    class APPROVAL approval
+    class PROD prod
             </pre>
         </div>
 
         <div class="legend">
-            <div class="legend-item trigger">
-                <h3>Trigger</h3>
-                <p>Git push to main, develop, or feature/* branches</p>
+            <div class="legend-item">
+                <div class="legend-dot trigger"></div>
+                <span>Trigger</span>
             </div>
-            <div class="legend-item orb">
-                <h3>Orbs</h3>
-                <p>circleci/node for caching, robot-fleet for health checks</p>
+            <div class="legend-item">
+                <div class="legend-dot orb"></div>
+                <span>Orbs</span>
             </div>
-            <div class="legend-item build">
-                <h3>Build Stage</h3>
-                <p>Install dependencies, build app, persist workspace</p>
+            <div class="legend-item">
+                <div class="legend-dot build"></div>
+                <span>Build</span>
             </div>
-            <div class="legend-item test">
-                <h3>Test Stage</h3>
-                <p>Run tests, store results, notify Slack on failure</p>
+            <div class="legend-item">
+                <div class="legend-dot test"></div>
+                <span>Test</span>
             </div>
-            <div class="legend-item deploy">
-                <h3>Deploy Stage</h3>
-                <p>Simulate Azure deployment, validate with orb commands</p>
+            <div class="legend-item">
+                <div class="legend-dot deploy"></div>
+                <span>Deploy</span>
             </div>
-            <div class="legend-item approval">
-                <h3>Approval Gate</h3>
-                <p>Manual approval required before production deploy</p>
+            <div class="legend-item">
+                <div class="legend-dot approval"></div>
+                <span>Approval Gate</span>
             </div>
-            <div class="legend-item prod">
-                <h3>Production</h3>
-                <p>Final deployment to production environment</p>
+            <div class="legend-item">
+                <div class="legend-dot prod"></div>
+                <span>Production</span>
             </div>
         </div>
 
         <footer>
-            <p>Globomantics Robot Fleet API - CircleCI Advanced Configuration Course</p>
+            Globomantics Robot Fleet API &bull; CircleCI Advanced Configuration
         </footer>
     </div>
 
@@ -186,9 +203,12 @@ flowchart TB
             startOnLoad: true,
             securityLevel: 'loose',
             flowchart: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 htmlLabels: true,
-                curve: 'basis'
+                curve: 'basis',
+                padding: 20,
+                nodeSpacing: 50,
+                rankSpacing: 60
             }
         });
     </script>
