@@ -39,7 +39,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(circleci orb validate:*)",
-      "Bash(start \"\" \"C:/github/advanced-circleci/docs/pipeline-diagram.html\")"
+      "Bash(start \"\" \"C:/github/advanced-circleci/docs/pipeline-diagram.html\")",
+      "Bash(git -C c:githubadvanced-circleci status --short)"
     ]
   }
 }
