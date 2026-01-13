@@ -7,11 +7,16 @@ set -e
 # Load environment variables from .env file
 if [ -f ".env" ]; then
   echo "=== Loading environment variables from .env file ==="
-  # Export variables from .env using a secure approach
-  # This avoids code injection by using set -a and careful parsing
-  set -a
-  . .env
-  set +a
+  # Export variables from .env safely
+  # Only processes lines with KEY=VALUE format, ignoring comments and empty lines
+  while IFS='=' read -r key value; do
+    # Skip comments and empty lines
+    [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+    # Remove leading/trailing whitespace from key
+    key=$(echo "$key" | xargs)
+    # Export the variable
+    export "$key=$value"
+  done < .env
   echo "Environment variables loaded from .env"
 else
   echo "ERROR: .env file not found!"
