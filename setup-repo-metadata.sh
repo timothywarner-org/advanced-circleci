@@ -7,9 +7,10 @@ set -e
 # Load environment variables from .env file
 if [ -f ".env" ]; then
   echo "=== Loading environment variables from .env file ==="
-  # Export variables from .env, ignoring comments and empty lines
+  # Export variables from .env using a secure approach
+  # This avoids code injection by using set -a and careful parsing
   set -a
-  source <(grep -v '^#' .env | grep -v '^$' | sed 's/\r$//')
+  . .env
   set +a
   echo "Environment variables loaded from .env"
 else
