@@ -12,6 +12,8 @@ if [ -f ".env" ]; then
   while IFS='=' read -r key value; do
     # Skip comments (including indented ones) and empty lines
     [[ "$key" =~ ^[[:space:]]*# || -z "$key" ]] && continue
+    # Skip lines without '=' character (invalid format)
+    [[ ! "$key" =~ = && -z "$value" ]] && continue
     # Remove leading/trailing whitespace from key using parameter expansion
     key="${key#"${key%%[![:space:]]*}"}"
     key="${key%"${key##*[![:space:]]}"}"
@@ -27,10 +29,11 @@ else
   exit 1
 fi
 
-# Verify GITHUB_TOKEN is set
-if [ -z "$GITHUB_TOKEN" ]; then
-  echo "ERROR: GITHUB_TOKEN is not set in .env file!"
-  echo "Please add GITHUB_TOKEN to your .env file"
+# Verify GITHUB_TOKEN is set and not empty (after trimming whitespace)
+GITHUB_TOKEN_TRIMMED="$(echo "$GITHUB_TOKEN" | xargs)"
+if [ -z "$GITHUB_TOKEN_TRIMMED" ]; then
+  echo "ERROR: GITHUB_TOKEN is not set or is empty in .env file!"
+  echo "Please add a valid GITHUB_TOKEN to your .env file"
   exit 1
 fi
 
