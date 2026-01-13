@@ -4,6 +4,16 @@
 
 set -e
 
+# Function to trim leading and trailing whitespace
+trim() {
+  local var="$1"
+  # Remove leading whitespace
+  var="${var#"${var%%[![:space:]]*}"}"
+  # Remove trailing whitespace
+  var="${var%"${var##*[![:space:]]}"}"
+  echo "$var"
+}
+
 # Load environment variables from .env file
 if [ -f ".env" ]; then
   echo "=== Loading environment variables from .env file ==="
@@ -17,9 +27,8 @@ if [ -f ".env" ]; then
     # Split line into key and value at first '='
     key="${line%%=*}"
     value="${line#*=}"
-    # Remove leading/trailing whitespace from key using parameter expansion
-    key="${key#"${key%%[![:space:]]*}"}"
-    key="${key%"${key##*[![:space:]]}"}"
+    # Remove leading/trailing whitespace from key
+    key="$(trim "$key")"
     # Validate key name (must be valid shell variable: uppercase letters, digits, underscores)
     [[ ! "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] && continue
     # Export the variable (value preserves everything after first '=', including embedded '=')
@@ -33,16 +42,15 @@ else
 fi
 
 # Verify GITHUB_TOKEN is set and not empty (after trimming whitespace)
-# Use parameter expansion for consistency
-GITHUB_TOKEN_TRIMMED="${GITHUB_TOKEN#"${GITHUB_TOKEN%%[![:space:]]*}"}"
-GITHUB_TOKEN_TRIMMED="${GITHUB_TOKEN_TRIMMED%"${GITHUB_TOKEN_TRIMMED##*[![:space:]]}"}"
+GITHUB_TOKEN_TRIMMED="$(trim "$GITHUB_TOKEN")"
 if [ -z "$GITHUB_TOKEN_TRIMMED" ]; then
   echo "ERROR: GITHUB_TOKEN is not set or is empty in .env file!"
   echo "Please add a valid GITHUB_TOKEN to your .env file"
   exit 1
 fi
 
-export GH_TOKEN="$GITHUB_TOKEN"
+# Export GH_TOKEN using the trimmed value
+export GH_TOKEN="$GITHUB_TOKEN_TRIMMED"
 echo "Using GitHub token from .env file"
 
 REPO="timothywarner-org/advanced-circleci"
