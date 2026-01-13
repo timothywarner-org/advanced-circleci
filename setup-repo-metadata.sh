@@ -9,17 +9,20 @@ if [ -f ".env" ]; then
   echo "=== Loading environment variables from .env file ==="
   # Export variables from .env safely
   # Only processes lines with KEY=VALUE format, ignoring comments and empty lines
-  while IFS='=' read -r key value; do
+  while IFS= read -r line; do
     # Skip comments (including indented ones) and empty lines
-    [[ "$key" =~ ^[[:space:]]*# || -z "$key" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# || -z "$line" ]] && continue
     # Skip lines without '=' character (invalid format)
-    [[ ! "$key" =~ = && -z "$value" ]] && continue
+    [[ ! "$line" =~ = ]] && continue
+    # Split line into key and value at first '='
+    key="${line%%=*}"
+    value="${line#*=}"
     # Remove leading/trailing whitespace from key using parameter expansion
     key="${key#"${key%%[![:space:]]*}"}"
     key="${key%"${key##*[![:space:]]}"}"
     # Validate key name (must be valid shell variable: uppercase letters, digits, underscores)
     [[ ! "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] && continue
-    # Export the variable (value captures everything after first '=', including embedded '=')
+    # Export the variable (value preserves everything after first '=', including embedded '=')
     export "$key=$value"
   done < .env
   echo "Environment variables loaded from .env"
@@ -30,7 +33,9 @@ else
 fi
 
 # Verify GITHUB_TOKEN is set and not empty (after trimming whitespace)
-GITHUB_TOKEN_TRIMMED="$(echo "$GITHUB_TOKEN" | xargs)"
+# Use parameter expansion for consistency
+GITHUB_TOKEN_TRIMMED="${GITHUB_TOKEN#"${GITHUB_TOKEN%%[![:space:]]*}"}"
+GITHUB_TOKEN_TRIMMED="${GITHUB_TOKEN_TRIMMED%"${GITHUB_TOKEN_TRIMMED##*[![:space:]]}"}"
 if [ -z "$GITHUB_TOKEN_TRIMMED" ]; then
   echo "ERROR: GITHUB_TOKEN is not set or is empty in .env file!"
   echo "Please add a valid GITHUB_TOKEN to your .env file"
