@@ -1,8 +1,32 @@
 #!/bin/bash
 # Setup script for repository metadata, topics, and labels
-# Run this locally with authenticated gh CLI
+# Reads GitHub token from .env file instead of system environment variables
 
 set -e
+
+# Load environment variables from .env file
+if [ -f ".env" ]; then
+  echo "=== Loading environment variables from .env file ==="
+  # Export variables from .env, ignoring comments and empty lines
+  set -a
+  source <(grep -v '^#' .env | grep -v '^$' | sed 's/\r$//')
+  set +a
+  echo "Environment variables loaded from .env"
+else
+  echo "ERROR: .env file not found!"
+  echo "Please copy .env.example to .env and set GITHUB_TOKEN"
+  exit 1
+fi
+
+# Verify GITHUB_TOKEN is set
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "ERROR: GITHUB_TOKEN is not set in .env file!"
+  echo "Please add GITHUB_TOKEN to your .env file"
+  exit 1
+fi
+
+export GH_TOKEN="$GITHUB_TOKEN"
+echo "Using GitHub token from .env file"
 
 REPO="timothywarner-org/advanced-circleci"
 
