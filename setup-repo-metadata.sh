@@ -10,11 +10,14 @@ if [ -f ".env" ]; then
   # Export variables from .env safely
   # Only processes lines with KEY=VALUE format, ignoring comments and empty lines
   while IFS='=' read -r key value; do
-    # Skip comments and empty lines
-    [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
-    # Remove leading/trailing whitespace from key
-    key=$(echo "$key" | xargs)
-    # Export the variable
+    # Skip comments (including indented ones) and empty lines
+    [[ "$key" =~ ^[[:space:]]*# || -z "$key" ]] && continue
+    # Remove leading/trailing whitespace from key using parameter expansion
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+    # Validate key name (must be valid shell variable: uppercase letters, digits, underscores)
+    [[ ! "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] && continue
+    # Export the variable (value captures everything after first '=', including embedded '=')
     export "$key=$value"
   done < .env
   echo "Environment variables loaded from .env"
